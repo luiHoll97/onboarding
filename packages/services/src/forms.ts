@@ -64,6 +64,54 @@ class LogEmailSender {
   }
 }
 
+class ResendEmailSender {
+  constructor(private readonly apiKey: string) {}
+
+  async send(message: EmailMessage): Promise<EmailSendResult> {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: message.from,
+        to: [message.to],
+        subject: message.subject,
+        html: message.html,
+      }),
+    });
+
+    let payload: unknown = undefined;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = undefined;
+    }
+
+    if (!response.ok) {
+      const reason =
+        typeof payload === "object" &&
+        payload !== null &&
+        "message" in payload &&
+        typeof Reflect.get(payload, "message") === "string"
+          ? String(Reflect.get(payload, "message"))
+          : `HTTP ${response.status}`;
+      throw new Error(`Resend API error: ${reason}`);
+    }
+
+    const messageId =
+      typeof payload === "object" &&
+      payload !== null &&
+      "id" in payload &&
+      typeof Reflect.get(payload, "id") === "string"
+        ? String(Reflect.get(payload, "id"))
+        : `resend-${randomUUID()}`;
+
+    return { sent: true, messageId };
+  }
+}
+
 type SmtpConfig = {
   host: string;
   port: number;
@@ -266,6 +314,12 @@ export class FormsService {
     const smtpUser = process.env.SMTP_USER ?? "";
     const smtpPass = process.env.SMTP_PASS ?? "";
     const smtpPort = Number(process.env.SMTP_PORT ?? 465);
+    const resendApiKey = process.env.RESEND_API_KEY ?? "";
+
+    if (resendApiKey) {
+      this.emailSender = new ResendEmailSender(resendApiKey);
+      return;
+    }
 
     if (smtpHost && smtpUser && smtpPass) {
       this.emailSender = new SmtpEmailSender({
