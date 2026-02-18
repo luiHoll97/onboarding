@@ -40,6 +40,16 @@ const db = createDatabaseAdapter();
 const formsService = createFormsService();
 const providerProcessing = new Set<string>();
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (message) {
+      return message;
+    }
+  }
+  return fallback;
+}
+
 const typeformFieldRefToKey: Record<string, string> = {
   "bbc1908b-14c5-4b99-8365-5055c2c9cefc": "details_confirmed",
   "d2745455-71ba-4d31-a07b-c675350b8730": "date_of_birth",
@@ -842,22 +852,27 @@ async function callRpc(method: RpcMethod, params: unknown): Promise<unknown> {
     const formId = process.env.ADDITIONAL_DETAILS_FORM_ID ?? "IlRPTScI";
     const sender = process.env.FORMS_SENDER_EMAIL ?? "tech.luiholl@gmail.com";
     const subject = "Driver Application Follow-up";
-    return formsService.sendFormInvitation({
-      provider: "typeform",
-      formId,
-      prefillFields: {
-        first_name: driver.firstName,
-        last_name: driver.lastName,
-        email: driver.email,
-        phone_number: driver.phone ?? "",
-        monday_id: mondayId,
-      },
-      recipientEmail: driver.email,
-      recipientFirstName: driver.firstName,
-      recipientLastName: driver.lastName,
-      senderEmail: sender,
-      subject,
-    });
+    try {
+      return await formsService.sendFormInvitation({
+        provider: "typeform",
+        formId,
+        prefillFields: {
+          first_name: driver.firstName,
+          last_name: driver.lastName,
+          email: driver.email,
+          phone_number: driver.phone ?? "",
+          monday_id: mondayId,
+        },
+        recipientEmail: driver.email,
+        recipientFirstName: driver.firstName,
+        recipientLastName: driver.lastName,
+        senderEmail: sender,
+        subject,
+      });
+    } catch (error) {
+      const message = errorMessage(error, "Unknown form invitation send error");
+      throw new Error(`Failed to send additional details form: ${message}`);
+    }
   }
   if (method === "login") {
     return db.login(parseLoginRequest(params));
@@ -930,8 +945,8 @@ app.post("/rpc", async (req: Request, res: Response) => {
     const result = await callRpc(method, objectField(body, "params"));
     res.json({ result });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
+    const message = errorMessage(error, "Internal server error");
+    console.error("[rpc.error]", { method, message, raw: error });
     res.status(500).json({
       error: { code: "INTERNAL_ERROR", message },
     });
@@ -949,7 +964,7 @@ app.post("/webhooks/:provider/:eventName", async (req: Request, res: Response) =
     });
     res.status(202).json(response);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid webhook request";
+    const message = errorMessage(error, "Invalid webhook request");
     res.status(400).json({ error: { code: "INVALID_WEBHOOK", message } });
   }
 });
@@ -966,7 +981,7 @@ app.post("/webhooks/typeform", async (req: Request, res: Response) => {
     });
     res.status(202).json(response);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid webhook request";
+    const message = errorMessage(error, "Invalid webhook request");
     res.status(400).json({ error: { code: "INVALID_WEBHOOK", message } });
   }
 });

@@ -29,8 +29,11 @@ export async function callServicesRpc(
   });
   const data = await res.json();
   if (!res.ok) {
+    const rawMessage = data?.error?.message;
     const message =
-      data?.error?.message ?? `RPC call failed for method "${method}"`;
+      typeof rawMessage === "string" && rawMessage.trim()
+        ? rawMessage
+        : `RPC call failed for method "${method}" with status ${res.status}`;
     throw new Error(message);
   }
   return data?.result;
