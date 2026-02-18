@@ -8,6 +8,7 @@ import { Stats } from "./pages/Stats.tsx";
 import { Login } from "./pages/Login.tsx";
 import { Staff } from "./pages/Staff.tsx";
 import { StaffDetail } from "./pages/StaffDetail.tsx";
+import { Webhooks } from "./pages/Webhooks.tsx";
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
           <Route index element={<Dashboard />} />
           <Route path="driver/:id" element={<DriverDetail />} />
           <Route path="stats" element={<Stats />} />
+          <Route path="webhooks" element={<Webhooks />} />
           <Route
             path="staff"
             element={

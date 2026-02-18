@@ -43,6 +43,18 @@ type SentFormInvitation {
   provider: String!
 }
 
+type WebhookEvent {
+  id: ID!
+  provider: String!
+  eventName: String!
+  externalEventId: String!
+  status: String!
+  attempts: Int!
+  createdAt: String!
+  processedAt: String!
+  errorMessage: String!
+}
+
 enum AuditAction {
   CREATED
   UPDATED
@@ -133,6 +145,7 @@ input UpdateDriverInput {
 
 type Query {
   me: AdminUser
+  webhooks(provider: String, limit: Int): [WebhookEvent!]!
   admins: [AdminUser!]!
   admin(id: ID!): AdminUser
   driver(id: ID!): Driver

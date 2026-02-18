@@ -34,6 +34,9 @@ import type {
   UpdateAdminAccessResponse,
   ValidateSessionRequest,
   ValidateSessionResponse,
+  ListWebhookEventsRequest,
+  ListWebhookEventsResponse,
+  WebhookEventSummary,
 } from "@driver-onboarding/proto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1161,6 +1164,37 @@ export class AppDatabase {
          WHERE id = ?`
       )
       .run(isTerminal ? "FAILED" : "PENDING", nextAvailable, message, eventId);
+  }
+
+  listWebhookEvents(request: ListWebhookEventsRequest): ListWebhookEventsResponse {
+    const provider = (request.provider ?? "").trim().toLowerCase();
+    const requestedLimit = request.limit ?? 50;
+    const limit =
+      requestedLimit > 0 ? Math.min(200, Math.trunc(requestedLimit)) : 50;
+    const rows = this.db
+      .prepare(
+        `SELECT id, provider, event_type, external_event_id, status, attempts, created_at, processed_at, error_message
+         FROM webhook_events
+         WHERE (? = '' OR provider = ?)
+         ORDER BY created_at DESC
+         LIMIT ?`
+      )
+      .all(provider, provider, limit);
+    if (!Array.isArray(rows)) {
+      return { events: [] };
+    }
+    const events: WebhookEventSummary[] = rows.map((row) => ({
+      id: stringValue(objectField(row, "id"), ""),
+      provider: stringValue(objectField(row, "provider"), ""),
+      eventName: stringValue(objectField(row, "event_type"), ""),
+      externalEventId: stringValue(objectField(row, "external_event_id"), ""),
+      status: stringValue(objectField(row, "status"), ""),
+      attempts: intValue(objectField(row, "attempts"), 0),
+      createdAt: stringValue(objectField(row, "created_at"), ""),
+      processedAt: stringValue(objectField(row, "processed_at"), ""),
+      errorMessage: stringValue(objectField(row, "error_message"), ""),
+    }));
+    return { events };
   }
 
   listAdmins(): ListAdminsResponse {

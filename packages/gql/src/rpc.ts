@@ -14,6 +14,7 @@ export const driverRpcMethods = {
   createAdmin: "svc.core.auth.AuthService.CreateAdmin",
   updateAdminAccess: "svc.core.auth.AuthService.UpdateAdminAccess",
   deleteAdmin: "svc.core.auth.AuthService.DeleteAdmin",
+  listWebhookEvents: "service.core.forms.FormsService.ListWebhookEvents",
 };
 
 export async function callServicesRpc(

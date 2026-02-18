@@ -14,6 +14,7 @@ const config: CodegenConfig = {
           Driver: "@driver-onboarding/proto#Driver",
           AuditEvent: "@driver-onboarding/proto#AuditEvent",
           AdminUser: "@driver-onboarding/proto#AdminUser",
+          WebhookEvent: "@driver-onboarding/proto#WebhookEventSummary",
         },
       },
     },

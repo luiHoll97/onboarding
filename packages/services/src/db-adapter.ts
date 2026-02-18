@@ -13,6 +13,8 @@ import type {
   ListAdminsResponse,
   ListDriversRequest,
   ListDriversResponse,
+  ListWebhookEventsRequest,
+  ListWebhookEventsResponse,
   LoginRequest,
   LoginResponse,
   LogoutRequest,
@@ -54,6 +56,7 @@ export interface DatabaseAdapter {
   claimNextWebhookEvent(provider: string): Promise<WebhookEvent | undefined>;
   markWebhookEventProcessed(eventId: string): Promise<void>;
   markWebhookEventFailed(eventId: string, message: string, attempts: number): Promise<void>;
+  listWebhookEvents(request: ListWebhookEventsRequest): Promise<ListWebhookEventsResponse>;
 }
 
 class SqliteDatabaseAdapter implements DatabaseAdapter {
@@ -128,6 +131,11 @@ class SqliteDatabaseAdapter implements DatabaseAdapter {
     attempts: number
   ): Promise<void> {
     this.db.markWebhookEventFailed(eventId, message, attempts);
+  }
+  async listWebhookEvents(
+    request: ListWebhookEventsRequest
+  ): Promise<ListWebhookEventsResponse> {
+    return this.db.listWebhookEvents(request);
   }
 }
 

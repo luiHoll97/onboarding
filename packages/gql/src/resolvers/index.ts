@@ -7,6 +7,7 @@ import { DriverStats } from "./DriverStats.js";
 import { DriverStatusCount } from "./DriverStatusCount.js";
 import { AuditEvent } from "./AuditEvent.js";
 import { AdminUser } from "./AdminUser.js";
+import { WebhookEvent } from "./WebhookEvent.js";
 
 export function createResolvers(): Resolvers {
   return {
@@ -18,5 +19,6 @@ export function createResolvers(): Resolvers {
     DriverStats,
     DriverStatusCount,
     AuditEvent,
+    WebhookEvent,
   };
 }

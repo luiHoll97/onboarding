@@ -20,6 +20,8 @@ import {
   type ListAdminsResponse,
   type ListDriversRequest,
   type ListDriversResponse,
+  type ListWebhookEventsRequest,
+  type ListWebhookEventsResponse,
   type LoginRequest,
   type LoginResponse,
   type LogoutRequest,
@@ -30,6 +32,7 @@ import {
   type ValidateSessionResponse,
   type AuditEvent,
   type Driver,
+  type WebhookEventSummary,
 } from "@driver-onboarding/proto";
 import type { DatabaseAdapter } from "./db-adapter.js";
 import type { WebhookEvent } from "./db.js";
@@ -738,6 +741,35 @@ class PostgresDatabase implements DatabaseAdapter {
       return undefined;
     }
     return this.loadDriver(id);
+  }
+
+  async listWebhookEvents(
+    request: ListWebhookEventsRequest
+  ): Promise<ListWebhookEventsResponse> {
+    const provider = (request.provider ?? "").trim().toLowerCase();
+    const requestedLimit = request.limit ?? 50;
+    const limit =
+      requestedLimit > 0 ? Math.min(200, Math.trunc(requestedLimit)) : 50;
+    const result = await this.pool.query(
+      `SELECT id, provider, event_type, external_event_id, status, attempts, created_at, processed_at, error_message
+       FROM webhook_events
+       WHERE ($1 = '' OR provider = $1)
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [provider, limit]
+    );
+    const events: WebhookEventSummary[] = result.rows.map((row) => ({
+      id: String(row.id ?? ""),
+      provider: String(row.provider ?? ""),
+      eventName: String(row.event_type ?? ""),
+      externalEventId: String(row.external_event_id ?? ""),
+      status: String(row.status ?? ""),
+      attempts: Number(row.attempts ?? 0),
+      createdAt: String(row.created_at ?? ""),
+      processedAt: String(row.processed_at ?? ""),
+      errorMessage: String(row.error_message ?? ""),
+    }));
+    return { events };
   }
 
   async enqueueWebhookEvent(input: {

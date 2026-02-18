@@ -18,6 +18,7 @@ import type {
   CreatePrefilledFormLinkRequest,
   IngestProviderWebhookRequest,
   IngestProviderWebhookResponse,
+  ListWebhookEventsRequest,
   CreateAdminRequest,
   SendFormInvitationRequest,
   DeleteAdminRequest,
@@ -38,6 +39,18 @@ app.use(express.json());
 const db = createDatabaseAdapter();
 const formsService = createFormsService();
 const providerProcessing = new Set<string>();
+
+const typeformFieldRefToKey: Record<string, string> = {
+  "bbc1908b-14c5-4b99-8365-5055c2c9cefc": "details_confirmed",
+  "d2745455-71ba-4d31-a07b-c675350b8730": "date_of_birth",
+  "92fc8a3f-466e-4dbf-825b-5c1f211c3940": "national_insurance_number",
+  "ddd7b1a2-972a-48e5-9fe8-e8204c5de29b": "emergency_contact_name",
+  "02bac3a4-d6e6-4bd8-a944-8648612ab95f": "emergency_contact_relationship",
+  "acff250a-11fe-4845-affc-b5db5c5cea7f": "emergency_contact_phone",
+  "185eb1c7-20bb-4ea9-984a-a8aa1732c01e": "preferred_days_per_week",
+  "b458f157-4547-4279-bc8f-7f1a5f341413": "preferred_start_day",
+  "07cc1c10-b4e4-4f01-9774-073cb5cae0f8": "preferred_start_date",
+};
 
 function objectField(source: unknown, key: string): unknown {
   if (typeof source !== "object" || source === null) {
@@ -372,6 +385,10 @@ function parseTypeformResponse(payload: unknown): {
       const parsed = parseTypeformAnswerValue(answer);
       if (parsed !== undefined) {
         fields[ref] = parsed;
+        const mapped = typeformFieldRefToKey[ref];
+        if (mapped) {
+          fields[mapped] = parsed;
+        }
       }
     }
   }
@@ -519,6 +536,34 @@ async function processTypeformEvent(payload: unknown, eventId: string): Promise<
   if (notes) {
     next.notes = notes;
   }
+  const emergencyRelationship = readStringField(
+    parsed.fields,
+    "emergency_contact_relationship"
+  );
+  const preferredDays = readStringField(parsed.fields, "preferred_days_per_week");
+  const preferredStartDay = readStringField(parsed.fields, "preferred_start_day");
+  const preferredStartDate = readStringField(parsed.fields, "preferred_start_date");
+  const detailsConfirmed = parsed.fields.details_confirmed;
+  if (emergencyRelationship) {
+    const line = `Emergency contact relationship: ${emergencyRelationship}`;
+    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+  }
+  if (preferredDays) {
+    const line = `Preferred days per week: ${preferredDays}`;
+    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+  }
+  if (preferredStartDay) {
+    const line = `Preferred start day (4-day week): ${preferredStartDay}`;
+    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+  }
+  if (preferredStartDate) {
+    const line = `Preferred start date: ${preferredStartDate}`;
+    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+  }
+  if (typeof detailsConfirmed === "boolean") {
+    const line = `Details confirmed by driver: ${detailsConfirmed ? "yes" : "no"}`;
+    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+  }
   next.notes = appendWebhookNote(next.notes, eventId, parsed.submittedAt);
 
   const updated = await db.updateDriver(next, "typeform-webhook");
@@ -646,6 +691,13 @@ function parseIngestProviderWebhookRequest(
   };
 }
 
+function parseListWebhookEventsRequest(value: unknown): ListWebhookEventsRequest {
+  return {
+    provider: parseString(objectField(value, "provider"), "").toLowerCase(),
+    limit: parseInteger(objectField(value, "limit"), 50),
+  };
+}
+
 function normalizeEventName(eventName: string): string {
   return eventName
     .trim()
@@ -692,6 +744,7 @@ const rpcMethods = {
   createPrefilledFormLink: "service.core.forms.FormsService.CreatePrefilledFormLink",
   sendFormInvitation: "service.core.forms.FormsService.SendFormInvitation",
   ingestProviderWebhook: "service.core.forms.FormsService.IngestProviderWebhook",
+  listWebhookEvents: "service.core.forms.FormsService.ListWebhookEvents",
 };
 
 type RpcMethod = keyof typeof rpcMethods;
@@ -718,7 +771,8 @@ function resolveRpcMethod(method: string): RpcMethod | undefined {
         key === "deleteAdmin" ||
         key === "createPrefilledFormLink" ||
         key === "sendFormInvitation" ||
-        key === "ingestProviderWebhook"
+        key === "ingestProviderWebhook" ||
+        key === "listWebhookEvents"
       ) {
         return key;
       }
@@ -834,7 +888,10 @@ async function callRpc(method: RpcMethod, params: unknown): Promise<unknown> {
   if (method === "sendFormInvitation") {
     return formsService.sendFormInvitation(parseSendFormInvitationRequest(params));
   }
-  return ingestProviderWebhook(parseIngestProviderWebhookRequest(params));
+  if (method === "ingestProviderWebhook") {
+    return ingestProviderWebhook(parseIngestProviderWebhookRequest(params));
+  }
+  return db.listWebhookEvents(parseListWebhookEventsRequest(params));
 }
 
 app.post("/rpc", async (req: Request, res: Response) => {

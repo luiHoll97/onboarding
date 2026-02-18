@@ -47,3 +47,24 @@ export interface IngestProviderWebhookResponse {
   provider: string;
   eventName: string;
 }
+
+export interface WebhookEventSummary {
+  id: string;
+  provider: string;
+  eventName: string;
+  externalEventId: string;
+  status: string;
+  attempts: number;
+  createdAt: string;
+  processedAt: string;
+  errorMessage: string;
+}
+
+export interface ListWebhookEventsRequest {
+  provider: string;
+  limit: number;
+}
+
+export interface ListWebhookEventsResponse {
+  events: WebhookEventSummary[];
+}
