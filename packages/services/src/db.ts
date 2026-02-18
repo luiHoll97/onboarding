@@ -251,7 +251,17 @@ function buildDriverFromRow(row: unknown): Driver {
     postcode: stringValue(objectField(row, "postcode"), ""),
     emergencyContactName: stringValue(objectField(row, "emergency_contact_name"), ""),
     emergencyContactPhone: stringValue(objectField(row, "emergency_contact_phone"), ""),
+    emergencyContactRelationship: stringValue(
+      objectField(row, "emergency_contact_relationship"),
+      ""
+    ),
     vehicleType: stringValue(objectField(row, "vehicle_type"), ""),
+    preferredDaysPerWeek: stringValue(objectField(row, "preferred_days_per_week"), ""),
+    preferredStartDate: stringValue(objectField(row, "preferred_start_date"), ""),
+    detailsConfirmedByDriver: stringValue(
+      objectField(row, "details_confirmed_by_driver"),
+      ""
+    ),
     notes: stringValue(objectField(row, "notes"), ""),
     auditTrail: [],
   };
@@ -298,7 +308,11 @@ function seedDrivers(): Driver[] {
       postcode: "M1 1AE",
       emergencyContactName: "Mark Doe",
       emergencyContactPhone: "+44 7700 900111",
+      emergencyContactRelationship: "",
       vehicleType: "Car",
+      preferredDaysPerWeek: "",
+      preferredStartDate: "",
+      detailsConfirmedByDriver: "",
       notes: "Prefers morning shifts.",
       auditTrail: [],
     },
@@ -328,7 +342,11 @@ function seedDrivers(): Driver[] {
       postcode: "LS1 4AB",
       emergencyContactName: "Emily Smith",
       emergencyContactPhone: "+44 7700 900222",
+      emergencyContactRelationship: "",
       vehicleType: "Van",
+      preferredDaysPerWeek: "",
+      preferredStartDate: "",
+      detailsConfirmedByDriver: "",
       notes: "Needs weekday evening availability.",
       auditTrail: [],
     },
@@ -358,7 +376,11 @@ function seedDrivers(): Driver[] {
       postcode: "L1 2PQ",
       emergencyContactName: "Taylor Rivera",
       emergencyContactPhone: "+44 7700 900333",
+      emergencyContactRelationship: "",
       vehicleType: "Bike",
+      preferredDaysPerWeek: "",
+      preferredStartDate: "",
+      detailsConfirmedByDriver: "",
       notes: "Can cover weekend routes.",
       auditTrail: [],
     },
@@ -388,7 +410,11 @@ function seedDrivers(): Driver[] {
       postcode: "BS1 5NN",
       emergencyContactName: "Morgan Chen",
       emergencyContactPhone: "+44 7700 900444",
+      emergencyContactRelationship: "",
       vehicleType: "Car",
+      preferredDaysPerWeek: "",
+      preferredStartDate: "",
+      detailsConfirmedByDriver: "",
       notes: "Rejected due to expired licence.",
       auditTrail: [],
     },
@@ -418,7 +444,11 @@ function seedDrivers(): Driver[] {
       postcode: "B1 1AA",
       emergencyContactName: "Chris Lee",
       emergencyContactPhone: "+44 7700 900555",
+      emergencyContactRelationship: "",
       vehicleType: "Car",
+      preferredDaysPerWeek: "",
+      preferredStartDate: "",
+      detailsConfirmedByDriver: "",
       notes: "Strong customer rating in prior role.",
       auditTrail: [],
     },
@@ -464,7 +494,11 @@ export class AppDatabase {
         postcode TEXT NOT NULL,
         emergency_contact_name TEXT NOT NULL,
         emergency_contact_phone TEXT NOT NULL,
+        emergency_contact_relationship TEXT NOT NULL,
         vehicle_type TEXT NOT NULL,
+        preferred_days_per_week TEXT NOT NULL,
+        preferred_start_date TEXT NOT NULL,
+        details_confirmed_by_driver TEXT NOT NULL,
         notes TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -522,6 +556,18 @@ export class AppDatabase {
 
     this.addColumnIfMissing("admin_users", "role", "INTEGER NOT NULL DEFAULT 1");
     this.addColumnIfMissing("admin_users", "permissions_json", "TEXT NOT NULL DEFAULT '[]'");
+    this.addColumnIfMissing(
+      "drivers",
+      "emergency_contact_relationship",
+      "TEXT NOT NULL DEFAULT ''"
+    );
+    this.addColumnIfMissing("drivers", "preferred_days_per_week", "TEXT NOT NULL DEFAULT ''");
+    this.addColumnIfMissing("drivers", "preferred_start_date", "TEXT NOT NULL DEFAULT ''");
+    this.addColumnIfMissing(
+      "drivers",
+      "details_confirmed_by_driver",
+      "TEXT NOT NULL DEFAULT ''"
+    );
 
     this.db
       .prepare(
@@ -610,15 +656,16 @@ export class AppDatabase {
           induction_date, interview_date, id_document_type, id_document_number,
           id_check_completed, id_check_completed_at, drivers_license_number,
           drivers_license_expiry_date, address_line_1, address_line_2, city,
-          postcode, emergency_contact_name, emergency_contact_phone, vehicle_type,
-          notes, created_at, updated_at
+          postcode, emergency_contact_name, emergency_contact_phone,
+          emergency_contact_relationship, vehicle_type, preferred_days_per_week,
+          preferred_start_date, details_confirmed_by_driver, notes, created_at, updated_at
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?
         )`
       )
@@ -648,7 +695,11 @@ export class AppDatabase {
         driver.postcode,
         driver.emergencyContactName,
         driver.emergencyContactPhone,
+        driver.emergencyContactRelationship,
         driver.vehicleType,
+        driver.preferredDaysPerWeek,
+        driver.preferredStartDate,
+        driver.detailsConfirmedByDriver,
         driver.notes,
         isoNow(),
         isoNow()
@@ -870,7 +921,11 @@ export class AppDatabase {
           postcode = ?,
           emergency_contact_name = ?,
           emergency_contact_phone = ?,
+          emergency_contact_relationship = ?,
           vehicle_type = ?,
+          preferred_days_per_week = ?,
+          preferred_start_date = ?,
+          details_confirmed_by_driver = ?,
           notes = ?,
           updated_at = ?
          WHERE id = ?`
@@ -900,7 +955,11 @@ export class AppDatabase {
         next.postcode,
         next.emergencyContactName,
         next.emergencyContactPhone,
+        next.emergencyContactRelationship,
         next.vehicleType,
+        next.preferredDaysPerWeek,
+        next.preferredStartDate,
+        next.detailsConfirmedByDriver,
         next.notes,
         isoNow(),
         next.id
@@ -931,7 +990,11 @@ export class AppDatabase {
       "postcode",
       "emergencyContactName",
       "emergencyContactPhone",
+      "emergencyContactRelationship",
       "vehicleType",
+      "preferredDaysPerWeek",
+      "preferredStartDate",
+      "detailsConfirmedByDriver",
       "notes",
     ];
 

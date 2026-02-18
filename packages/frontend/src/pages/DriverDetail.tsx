@@ -29,7 +29,11 @@ const DRIVER_FIELDS = `
   postcode
   emergencyContactName
   emergencyContactPhone
+  emergencyContactRelationship
   vehicleType
+  preferredDaysPerWeek
+  preferredStartDate
+  detailsConfirmedByDriver
   notes
   auditTrail {
     id
@@ -119,7 +123,11 @@ type Driver = {
   postcode?: string | null;
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
+  emergencyContactRelationship?: string | null;
   vehicleType?: string | null;
+  preferredDaysPerWeek?: string | null;
+  preferredStartDate?: string | null;
+  detailsConfirmedByDriver?: string | null;
   notes?: string | null;
   auditTrail: AuditEvent[];
 };
@@ -169,7 +177,11 @@ type DriverForm = {
   postcode: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  emergencyContactRelationship: string;
   vehicleType: string;
+  preferredDaysPerWeek: string;
+  preferredStartDate: string;
+  detailsConfirmedByDriver: string;
   notes: string;
 };
 
@@ -233,7 +245,11 @@ function toForm(driver: Driver): DriverForm {
     postcode: driver.postcode ?? "",
     emergencyContactName: driver.emergencyContactName ?? "",
     emergencyContactPhone: driver.emergencyContactPhone ?? "",
+    emergencyContactRelationship: driver.emergencyContactRelationship ?? "",
     vehicleType: driver.vehicleType ?? "",
+    preferredDaysPerWeek: driver.preferredDaysPerWeek ?? "",
+    preferredStartDate: toDateInput(driver.preferredStartDate),
+    detailsConfirmedByDriver: driver.detailsConfirmedByDriver ?? "",
     notes: driver.notes ?? "",
   };
 }
@@ -265,7 +281,11 @@ function emptyForm(id: string): DriverForm {
     postcode: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
+    emergencyContactRelationship: "",
     vehicleType: "",
+    preferredDaysPerWeek: "",
+    preferredStartDate: "",
+    detailsConfirmedByDriver: "",
     notes: "",
   };
 }
@@ -376,7 +396,11 @@ export function DriverDetail() {
           postcode: valueOrNull(form.postcode),
           emergencyContactName: valueOrNull(form.emergencyContactName),
           emergencyContactPhone: valueOrNull(form.emergencyContactPhone),
+          emergencyContactRelationship: valueOrNull(form.emergencyContactRelationship),
           vehicleType: valueOrNull(form.vehicleType),
+          preferredDaysPerWeek: valueOrNull(form.preferredDaysPerWeek),
+          preferredStartDate: valueOrNull(form.preferredStartDate),
+          detailsConfirmedByDriver: valueOrNull(form.detailsConfirmedByDriver),
           notes: valueOrNull(form.notes),
         },
       },
@@ -410,6 +434,7 @@ export function DriverDetail() {
   }
 
   const auditTrail = [...data.driver.auditTrail].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const detailsConfirmedNo = form.detailsConfirmedByDriver.toLowerCase() === "no";
 
   return (
     <>
@@ -448,54 +473,90 @@ export function DriverDetail() {
           You have read-only access. Driver edits require the EDIT_DRIVERS permission.
         </p>
       ) : null}
+      {detailsConfirmedNo ? (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Driver marked details as not confirmed in Typeform. Review this profile before progressing.
+        </div>
+      ) : null}
 
       <form className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" onSubmit={onSubmit}>
         <fieldset disabled={!canEditDrivers}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <label className="grid gap-1 text-sm text-slate-500">Full name<input className={inputClassName()} value={form.name} onChange={onInputChange("name")} required /></label>
-          <label className="grid gap-1 text-sm text-slate-500">First name<input className={inputClassName()} value={form.firstName} onChange={onInputChange("firstName")} required /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Last name<input className={inputClassName()} value={form.lastName} onChange={onInputChange("lastName")} required /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Email<input className={inputClassName()} type="email" value={form.email} onChange={onInputChange("email")} required /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Phone<input className={inputClassName()} value={form.phone} onChange={onInputChange("phone")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Status<select className={inputClassName()} value={form.status} onChange={onInputChange("status")}><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label>
-          <label className="grid gap-1 text-sm text-slate-500">Applied at<input className={inputClassName()} type="datetime-local" value={form.appliedAt} onChange={onInputChange("appliedAt")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Date of birth<input className={inputClassName()} type="date" value={form.dateOfBirth} onChange={onInputChange("dateOfBirth")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">National Insurance number<input className={inputClassName()} value={form.nationalInsuranceNumber} onChange={onInputChange("nationalInsuranceNumber")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Right to work check code<input className={inputClassName()} value={form.rightToWorkCheckCode} onChange={onInputChange("rightToWorkCheckCode")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Interview date<input className={inputClassName()} type="datetime-local" value={form.interviewDate} onChange={onInputChange("interviewDate")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Induction date<input className={inputClassName()} type="datetime-local" value={form.inductionDate} onChange={onInputChange("inductionDate")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">ID document type<input className={inputClassName()} value={form.idDocumentType} onChange={onInputChange("idDocumentType")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">ID document number<input className={inputClassName()} value={form.idDocumentNumber} onChange={onInputChange("idDocumentNumber")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Driver licence number<input className={inputClassName()} value={form.driversLicenseNumber} onChange={onInputChange("driversLicenseNumber")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Driver licence expiry<input className={inputClassName()} type="date" value={form.driversLicenseExpiryDate} onChange={onInputChange("driversLicenseExpiryDate")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Address line 1<input className={inputClassName()} value={form.addressLine1} onChange={onInputChange("addressLine1")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Address line 2<input className={inputClassName()} value={form.addressLine2} onChange={onInputChange("addressLine2")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">City<input className={inputClassName()} value={form.city} onChange={onInputChange("city")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Postcode<input className={inputClassName()} value={form.postcode} onChange={onInputChange("postcode")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Emergency contact<input className={inputClassName()} value={form.emergencyContactName} onChange={onInputChange("emergencyContactName")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Emergency phone<input className={inputClassName()} value={form.emergencyContactPhone} onChange={onInputChange("emergencyContactPhone")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">Vehicle type<input className={inputClassName()} value={form.vehicleType} onChange={onInputChange("vehicleType")} /></label>
-          <label className="grid gap-1 text-sm text-slate-500">ID check completed at<input className={inputClassName()} type="datetime-local" value={form.idCheckCompletedAt} onChange={onInputChange("idCheckCompletedAt")} /></label>
-          <label className="flex items-center gap-2 self-end text-sm text-slate-600"><input className="h-4 w-4" type="checkbox" checked={form.idCheckCompleted} onChange={onInputChange("idCheckCompleted")} />ID check completed</label>
-        </div>
+          <section className="mb-5">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">Basic Details</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1 text-sm text-slate-500">Full name<input className={inputClassName()} value={form.name} onChange={onInputChange("name")} required /></label>
+              <label className="grid gap-1 text-sm text-slate-500">First name<input className={inputClassName()} value={form.firstName} onChange={onInputChange("firstName")} required /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Last name<input className={inputClassName()} value={form.lastName} onChange={onInputChange("lastName")} required /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Email<input className={inputClassName()} type="email" value={form.email} onChange={onInputChange("email")} required /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Phone<input className={inputClassName()} value={form.phone} onChange={onInputChange("phone")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Status<select className={inputClassName()} value={form.status} onChange={onInputChange("status")}><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label>
+              <label className="grid gap-1 text-sm text-slate-500">Applied at<input className={inputClassName()} type="datetime-local" value={form.appliedAt} onChange={onInputChange("appliedAt")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Date of birth<input className={inputClassName()} type="date" value={form.dateOfBirth} onChange={onInputChange("dateOfBirth")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Vehicle type<input className={inputClassName()} value={form.vehicleType} onChange={onInputChange("vehicleType")} /></label>
+            </div>
+          </section>
 
-        <label className="mt-4 grid gap-1 text-sm text-slate-500">
-          Notes
-          <textarea
-            value={form.notes}
-            onChange={onInputChange("notes")}
-            rows={4}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-blue-500 focus:ring-2"
-          />
-        </label>
+          <section className="mb-5 border-t border-slate-200 pt-5">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">Compliance</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1 text-sm text-slate-500">National Insurance number<input className={inputClassName()} value={form.nationalInsuranceNumber} onChange={onInputChange("nationalInsuranceNumber")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Right to work check code<input className={inputClassName()} value={form.rightToWorkCheckCode} onChange={onInputChange("rightToWorkCheckCode")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Interview date<input className={inputClassName()} type="datetime-local" value={form.interviewDate} onChange={onInputChange("interviewDate")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Induction date<input className={inputClassName()} type="datetime-local" value={form.inductionDate} onChange={onInputChange("inductionDate")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">ID document type<input className={inputClassName()} value={form.idDocumentType} onChange={onInputChange("idDocumentType")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">ID document number<input className={inputClassName()} value={form.idDocumentNumber} onChange={onInputChange("idDocumentNumber")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Driver licence number<input className={inputClassName()} value={form.driversLicenseNumber} onChange={onInputChange("driversLicenseNumber")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Driver licence expiry<input className={inputClassName()} type="date" value={form.driversLicenseExpiryDate} onChange={onInputChange("driversLicenseExpiryDate")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">ID check completed at<input className={inputClassName()} type="datetime-local" value={form.idCheckCompletedAt} onChange={onInputChange("idCheckCompletedAt")} /></label>
+              <label className="flex items-center gap-2 self-end text-sm text-slate-600"><input className="h-4 w-4" type="checkbox" checked={form.idCheckCompleted} onChange={onInputChange("idCheckCompleted")} />ID check completed</label>
+            </div>
+          </section>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={updateState.loading}>
-            {updateState.loading ? "Saving..." : "Save Changes"}
-          </button>
-          {updateState.error ? <span className="text-sm text-red-700">{updateState.error.message}</span> : null}
-          {saveMessage ? <span className="text-sm text-emerald-700">{saveMessage}</span> : null}
-        </div>
+          <section className="mb-5 border-t border-slate-200 pt-5">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">Address</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1 text-sm text-slate-500">Address line 1<input className={inputClassName()} value={form.addressLine1} onChange={onInputChange("addressLine1")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Address line 2<input className={inputClassName()} value={form.addressLine2} onChange={onInputChange("addressLine2")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">City<input className={inputClassName()} value={form.city} onChange={onInputChange("city")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Postcode<input className={inputClassName()} value={form.postcode} onChange={onInputChange("postcode")} /></label>
+            </div>
+          </section>
+
+          <section className="mb-5 border-t border-slate-200 pt-5">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">Emergency Contact</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1 text-sm text-slate-500">Emergency contact<input className={inputClassName()} value={form.emergencyContactName} onChange={onInputChange("emergencyContactName")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Emergency phone<input className={inputClassName()} value={form.emergencyContactPhone} onChange={onInputChange("emergencyContactPhone")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Relationship<input className={inputClassName()} value={form.emergencyContactRelationship} onChange={onInputChange("emergencyContactRelationship")} /></label>
+            </div>
+          </section>
+
+          <section className="mb-5 border-t border-slate-200 pt-5">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">Availability Preferences</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <label className="grid gap-1 text-sm text-slate-500">Preferred days per week<input className={inputClassName()} value={form.preferredDaysPerWeek} onChange={onInputChange("preferredDaysPerWeek")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Preferred start date<input className={inputClassName()} type="date" value={form.preferredStartDate} onChange={onInputChange("preferredStartDate")} /></label>
+              <label className="grid gap-1 text-sm text-slate-500">Details confirmed by driver<select className={inputClassName()} value={form.detailsConfirmedByDriver} onChange={onInputChange("detailsConfirmedByDriver")}><option value="">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+            </div>
+          </section>
+
+          <label className="grid gap-1 text-sm text-slate-500">
+            Notes
+            <textarea
+              value={form.notes}
+              onChange={onInputChange("notes")}
+              rows={4}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-blue-500 focus:ring-2"
+            />
+          </label>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={updateState.loading}>
+              {updateState.loading ? "Saving..." : "Save Changes"}
+            </button>
+            {updateState.error ? <span className="text-sm text-red-700">{updateState.error.message}</span> : null}
+            {saveMessage ? <span className="text-sm text-emerald-700">{saveMessage}</span> : null}
+          </div>
         </fieldset>
       </form>
 

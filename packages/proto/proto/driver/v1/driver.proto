@@ -31,6 +31,10 @@ message Driver {
   string vehicle_type = 26;
   string notes = 27;
   repeated AuditEvent audit_trail = 28;
+  string emergency_contact_relationship = 29;
+  string preferred_days_per_week = 30;
+  string preferred_start_date = 31; // YYYY-MM-DD
+  string details_confirmed_by_driver = 32; // yes | no | ""
 }
 
 enum DriverStatus {

@@ -44,7 +44,11 @@ export const UpdateDriverMutation: NonNullable<
     postcode: input.postcode ?? "",
     emergencyContactName: input.emergencyContactName ?? "",
     emergencyContactPhone: input.emergencyContactPhone ?? "",
+    emergencyContactRelationship: input.emergencyContactRelationship ?? "",
     vehicleType: input.vehicleType ?? "",
+    preferredDaysPerWeek: input.preferredDaysPerWeek ?? "",
+    preferredStartDate: input.preferredStartDate ?? "",
+    detailsConfirmedByDriver: input.detailsConfirmedByDriver ?? "",
     notes: input.notes ?? "",
     auditTrail: current.driver.auditTrail,
   };

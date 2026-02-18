@@ -195,7 +195,11 @@ function buildDriverFromRow(row: Record<string, unknown>): Driver {
     postcode: String(row.postcode ?? ""),
     emergencyContactName: String(row.emergency_contact_name ?? ""),
     emergencyContactPhone: String(row.emergency_contact_phone ?? ""),
+    emergencyContactRelationship: String(row.emergency_contact_relationship ?? ""),
     vehicleType: String(row.vehicle_type ?? ""),
+    preferredDaysPerWeek: String(row.preferred_days_per_week ?? ""),
+    preferredStartDate: String(row.preferred_start_date ?? ""),
+    detailsConfirmedByDriver: String(row.details_confirmed_by_driver ?? ""),
     notes: String(row.notes ?? ""),
     auditTrail: [],
   };
@@ -251,7 +255,11 @@ class PostgresDatabase implements DatabaseAdapter {
         postcode TEXT NOT NULL,
         emergency_contact_name TEXT NOT NULL,
         emergency_contact_phone TEXT NOT NULL,
+        emergency_contact_relationship TEXT NOT NULL,
         vehicle_type TEXT NOT NULL,
+        preferred_days_per_week TEXT NOT NULL,
+        preferred_start_date TEXT NOT NULL,
+        details_confirmed_by_driver TEXT NOT NULL,
         notes TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -307,6 +315,27 @@ class PostgresDatabase implements DatabaseAdapter {
       ON webhook_events(provider, external_event_id);
     `);
 
+    await this.addColumnIfMissing(
+      "drivers",
+      "emergency_contact_relationship",
+      "TEXT NOT NULL DEFAULT ''"
+    );
+    await this.addColumnIfMissing(
+      "drivers",
+      "preferred_days_per_week",
+      "TEXT NOT NULL DEFAULT ''"
+    );
+    await this.addColumnIfMissing(
+      "drivers",
+      "preferred_start_date",
+      "TEXT NOT NULL DEFAULT ''"
+    );
+    await this.addColumnIfMissing(
+      "drivers",
+      "details_confirmed_by_driver",
+      "TEXT NOT NULL DEFAULT ''"
+    );
+
     const existing = await this.pool.query("SELECT COUNT(*)::int AS count FROM admin_users");
     if ((existing.rows[0]?.count ?? 0) === 0) {
       const salt = randomBytes(16).toString("hex");
@@ -332,6 +361,24 @@ class PostgresDatabase implements DatabaseAdapter {
   private async client(): Promise<PoolClient> {
     await this.ready;
     return this.pool.connect();
+  }
+
+  private async addColumnIfMissing(
+    tableName: string,
+    columnName: string,
+    definition: string
+  ): Promise<void> {
+    const result = await this.pool.query(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2
+       LIMIT 1`,
+      [tableName, columnName]
+    );
+    if (result.rowCount && result.rowCount > 0) {
+      return;
+    }
+    await this.pool.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
   }
 
   private async loadAuditTrail(driverId: string): Promise<AuditEvent[]> {
@@ -492,10 +539,14 @@ class PostgresDatabase implements DatabaseAdapter {
         postcode = $22,
         emergency_contact_name = $23,
         emergency_contact_phone = $24,
-        vehicle_type = $25,
-        notes = $26,
-        updated_at = $27
-       WHERE id = $28`,
+        emergency_contact_relationship = $25,
+        vehicle_type = $26,
+        preferred_days_per_week = $27,
+        preferred_start_date = $28,
+        details_confirmed_by_driver = $29,
+        notes = $30,
+        updated_at = $31
+       WHERE id = $32`,
       [
         next.name,
         next.firstName,
@@ -521,7 +572,11 @@ class PostgresDatabase implements DatabaseAdapter {
         next.postcode,
         next.emergencyContactName,
         next.emergencyContactPhone,
+        next.emergencyContactRelationship,
         next.vehicleType,
+        next.preferredDaysPerWeek,
+        next.preferredStartDate,
+        next.detailsConfirmedByDriver,
         next.notes,
         isoNow(),
         next.id,
@@ -553,7 +608,11 @@ class PostgresDatabase implements DatabaseAdapter {
       "postcode",
       "emergencyContactName",
       "emergencyContactPhone",
+      "emergencyContactRelationship",
       "vehicleType",
+      "preferredDaysPerWeek",
+      "preferredStartDate",
+      "detailsConfirmedByDriver",
       "notes",
     ];
     let changeIndex = (await this.auditCount(next.id)) + 1;

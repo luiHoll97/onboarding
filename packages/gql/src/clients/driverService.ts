@@ -125,7 +125,17 @@ function parseDriver(value: unknown): Driver {
       objectField(value, "emergencyContactPhone"),
       ""
     ),
+    emergencyContactRelationship: parseString(
+      objectField(value, "emergencyContactRelationship"),
+      ""
+    ),
     vehicleType: parseString(objectField(value, "vehicleType"), ""),
+    preferredDaysPerWeek: parseString(objectField(value, "preferredDaysPerWeek"), ""),
+    preferredStartDate: parseString(objectField(value, "preferredStartDate"), ""),
+    detailsConfirmedByDriver: parseString(
+      objectField(value, "detailsConfirmedByDriver"),
+      ""
+    ),
     notes: parseString(objectField(value, "notes"), ""),
     auditTrail,
   };

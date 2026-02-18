@@ -98,7 +98,11 @@ type Driver {
   postcode: String
   emergencyContactName: String
   emergencyContactPhone: String
+  emergencyContactRelationship: String
   vehicleType: String
+  preferredDaysPerWeek: String
+  preferredStartDate: String
+  detailsConfirmedByDriver: String
   notes: String
   auditTrail: [AuditEvent!]!
 }
@@ -139,7 +143,11 @@ input UpdateDriverInput {
   postcode: String
   emergencyContactName: String
   emergencyContactPhone: String
+  emergencyContactRelationship: String
   vehicleType: String
+  preferredDaysPerWeek: String
+  preferredStartDate: String
+  detailsConfirmedByDriver: String
   notes: String
 }
 

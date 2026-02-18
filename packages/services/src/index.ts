@@ -220,7 +220,23 @@ function parseUpdateDriverRequest(value: unknown, current: Driver): UpdateDriver
         objectField(rawDriver, "emergencyContactPhone"),
         current.emergencyContactPhone
       ),
+      emergencyContactRelationship: parseString(
+        objectField(rawDriver, "emergencyContactRelationship"),
+        current.emergencyContactRelationship
+      ),
       vehicleType: parseString(objectField(rawDriver, "vehicleType"), current.vehicleType),
+      preferredDaysPerWeek: parseString(
+        objectField(rawDriver, "preferredDaysPerWeek"),
+        current.preferredDaysPerWeek
+      ),
+      preferredStartDate: parseString(
+        objectField(rawDriver, "preferredStartDate"),
+        current.preferredStartDate
+      ),
+      detailsConfirmedByDriver: parseString(
+        objectField(rawDriver, "detailsConfirmedByDriver"),
+        current.detailsConfirmedByDriver
+      ),
       notes: parseString(objectField(rawDriver, "notes"), current.notes),
       auditTrail: current.auditTrail,
     },
@@ -547,24 +563,20 @@ async function processTypeformEvent(payload: unknown, eventId: string): Promise<
   const preferredStartDate = readStringField(parsed.fields, "preferred_start_date");
   const detailsConfirmed = parsed.fields.details_confirmed;
   if (emergencyRelationship) {
-    const line = `Emergency contact relationship: ${emergencyRelationship}`;
-    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+    next.emergencyContactRelationship = emergencyRelationship;
   }
   if (preferredDays) {
-    const line = `Preferred days per week: ${preferredDays}`;
-    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+    next.preferredDaysPerWeek = preferredDays;
   }
   if (preferredStartDay) {
     const line = `Preferred start day (4-day week): ${preferredStartDay}`;
     next.notes = next.notes ? `${next.notes}\n${line}` : line;
   }
   if (preferredStartDate) {
-    const line = `Preferred start date: ${preferredStartDate}`;
-    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+    next.preferredStartDate = preferredStartDate;
   }
   if (typeof detailsConfirmed === "boolean") {
-    const line = `Details confirmed by driver: ${detailsConfirmed ? "yes" : "no"}`;
-    next.notes = next.notes ? `${next.notes}\n${line}` : line;
+    next.detailsConfirmedByDriver = detailsConfirmed ? "yes" : "no";
   }
   next.notes = appendWebhookNote(next.notes, eventId, parsed.submittedAt);
 
@@ -827,7 +839,7 @@ async function callRpc(method: RpcMethod, params: unknown): Promise<unknown> {
     }
 
     const mondayId = request.mondayId || driver.id;
-    const formId = process.env.ADDITIONAL_DETAILS_FORM_ID ?? "WYyRIRL4";
+    const formId = process.env.ADDITIONAL_DETAILS_FORM_ID ?? "IlRPTScI";
     const sender = process.env.FORMS_SENDER_EMAIL ?? "tech.luiholl@gmail.com";
     const subject = "Driver Application Follow-up";
     return formsService.sendFormInvitation({

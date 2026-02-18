@@ -53,7 +53,11 @@ export interface Driver {
   postcode: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  emergencyContactRelationship: string;
   vehicleType: string;
+  preferredDaysPerWeek: string;
+  preferredStartDate: string;
+  detailsConfirmedByDriver: string;
   notes: string;
   auditTrail: AuditEvent[];
 }
