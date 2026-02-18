@@ -20,6 +20,19 @@ type EmailSendResult = {
   messageId: string;
 };
 
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.message.trim()) {
+      return error.message;
+    }
+    return error.name || "Unknown error";
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  return "Unknown error";
+}
+
 type ExternalFormProvider = {
   buildPrefilledUrl(formId: string, prefillFields: Record<string, string>): string;
   id: string;
@@ -101,53 +114,71 @@ class SmtpEmailSender {
   }
 
   async send(message: EmailMessage): Promise<EmailSendResult> {
+    let phase = "connect";
     const socket = connectTls({
       host: this.config.host,
       port: this.config.port,
       servername: this.config.host,
     });
 
-    await new Promise<void>((resolve, reject) => {
-      socket.once("secureConnect", () => resolve());
-      socket.once("error", (error) => reject(error));
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        socket.once("secureConnect", () => resolve());
+        socket.once("error", (error) => reject(error));
+      });
 
-    const greeting = await this.readResponse(socket);
-    if (greeting.code !== 220) {
-      throw new Error(`SMTP greeting failed: ${greeting.text}`);
+      phase = "greeting";
+      const greeting = await this.readResponse(socket);
+      if (greeting.code !== 220) {
+        throw new Error(`SMTP greeting failed: ${greeting.text}`);
+      }
+
+      phase = "ehlo";
+      await this.command(socket, "EHLO localhost", 250);
+      phase = "auth.login";
+      await this.command(socket, "AUTH LOGIN", 334);
+      phase = "auth.username";
+      await this.command(socket, Buffer.from(this.config.username).toString("base64"), 334);
+      phase = "auth.password";
+      await this.command(socket, Buffer.from(this.config.password).toString("base64"), 235);
+      phase = "mail.from";
+      await this.command(socket, `MAIL FROM:<${message.from}>`, 250);
+      phase = "rcpt.to";
+      await this.command(socket, `RCPT TO:<${message.to}>`, 250);
+      phase = "data.start";
+      await this.command(socket, "DATA", 354);
+
+      const messageId = `<${randomUUID()}@driver-onboarding.local>`;
+      const payload = [
+        `From: ${message.from}`,
+        `To: ${message.to}`,
+        `Subject: ${message.subject}`,
+        "MIME-Version: 1.0",
+        "Content-Type: text/html; charset=UTF-8",
+        `Message-ID: ${messageId}`,
+        "",
+        message.html,
+        ".",
+      ].join("\r\n");
+
+      phase = "data.body";
+      socket.write(`${payload}\r\n`);
+      const dataResponse = await this.readResponse(socket);
+      if (dataResponse.code !== 250) {
+        throw new Error(`SMTP DATA failed: ${dataResponse.text}`);
+      }
+
+      phase = "quit";
+      await this.command(socket, "QUIT", 221);
+      socket.end();
+
+      return { sent: true, messageId };
+    } catch (error) {
+      socket.destroy();
+      throw new Error(
+        `SMTP send failed at ${phase} (host=${this.config.host}, port=${this.config.port}): ${describeError(error)}`
+      );
     }
-
-    await this.command(socket, "EHLO localhost", 250);
-    await this.command(socket, "AUTH LOGIN", 334);
-    await this.command(socket, Buffer.from(this.config.username).toString("base64"), 334);
-    await this.command(socket, Buffer.from(this.config.password).toString("base64"), 235);
-    await this.command(socket, `MAIL FROM:<${message.from}>`, 250);
-    await this.command(socket, `RCPT TO:<${message.to}>`, 250);
-    await this.command(socket, "DATA", 354);
-
-    const messageId = `<${randomUUID()}@driver-onboarding.local>`;
-    const payload = [
-      `From: ${message.from}`,
-      `To: ${message.to}`,
-      `Subject: ${message.subject}`,
-      "MIME-Version: 1.0",
-      "Content-Type: text/html; charset=UTF-8",
-      `Message-ID: ${messageId}`,
-      "",
-      message.html,
-      ".",
-    ].join("\r\n");
-
-    socket.write(`${payload}\r\n`);
-    const dataResponse = await this.readResponse(socket);
-    if (dataResponse.code !== 250) {
-      throw new Error(`SMTP DATA failed: ${dataResponse.text}`);
-    }
-
-    await this.command(socket, "QUIT", 221);
-    socket.end();
-
-    return { sent: true, messageId };
   }
 }
 
@@ -281,12 +312,19 @@ export class FormsService {
       qrCodeUrl,
     });
 
-    const sent = await this.emailSender.send({
-      from: request.senderEmail,
-      to: request.recipientEmail,
-      subject: request.subject,
-      html,
-    });
+    let sent: EmailSendResult;
+    try {
+      sent = await this.emailSender.send({
+        from: request.senderEmail,
+        to: request.recipientEmail,
+        subject: request.subject,
+        html,
+      });
+    } catch (error) {
+      throw new Error(
+        `Forms invitation send failed (provider=${provider.id}, recipient=${request.recipientEmail}, sender=${request.senderEmail}): ${describeError(error)}`
+      );
+    }
 
     return {
       sent: sent.sent,
