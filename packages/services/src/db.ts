@@ -98,9 +98,22 @@ function passwordHash(password: string, salt: string): string {
 }
 
 function toDriverStatus(value: unknown): DriverStatus {
-  if (value === DriverStatus.APPROVED) return DriverStatus.APPROVED;
+  if (value === DriverStatus.ADDITIONAL_DETAILS_SENT) return DriverStatus.ADDITIONAL_DETAILS_SENT;
+  if (value === DriverStatus.ADDITIONAL_DETAILS_COMPLETED) {
+    return DriverStatus.ADDITIONAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.INTERNAL_DETAILS_SENT) return DriverStatus.INTERNAL_DETAILS_SENT;
+  if (value === DriverStatus.INTERNAL_DETAILS_COMPLETED) {
+    return DriverStatus.INTERNAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.AWAITING_INDUCTION) return DriverStatus.AWAITING_INDUCTION;
+  if (value === DriverStatus.WITHDRAWN) return DriverStatus.WITHDRAWN;
   if (value === DriverStatus.REJECTED) return DriverStatus.REJECTED;
-  return DriverStatus.PENDING;
+  // Legacy values from previous status model.
+  if (value === 1) return DriverStatus.ADDITIONAL_DETAILS_SENT;
+  if (value === 2) return DriverStatus.AWAITING_INDUCTION;
+  if (value === 3) return DriverStatus.REJECTED;
+  return DriverStatus.ADDITIONAL_DETAILS_SENT;
 }
 
 function toAuditAction(value: unknown): AuditAction {
@@ -111,9 +124,17 @@ function toAuditAction(value: unknown): AuditAction {
 }
 
 function statusLabel(status: DriverStatus): string {
-  if (status === DriverStatus.APPROVED) return "APPROVED";
+  if (status === DriverStatus.ADDITIONAL_DETAILS_COMPLETED) {
+    return "ADDITIONAL_DETAILS_COMPLETED";
+  }
+  if (status === DriverStatus.INTERNAL_DETAILS_SENT) return "INTERNAL_DETAILS_SENT";
+  if (status === DriverStatus.INTERNAL_DETAILS_COMPLETED) {
+    return "INTERNAL_DETAILS_COMPLETED";
+  }
+  if (status === DriverStatus.AWAITING_INDUCTION) return "AWAITING_INDUCTION";
+  if (status === DriverStatus.WITHDRAWN) return "WITHDRAWN";
   if (status === DriverStatus.REJECTED) return "REJECTED";
-  return "PENDING";
+  return "ADDITIONAL_DETAILS_SENT";
 }
 
 function normalizePermission(permission: AdminPermission): AdminPermission {
@@ -226,7 +247,9 @@ function buildDriverFromRow(row: unknown): Driver {
     lastName: stringValue(objectField(row, "last_name"), ""),
     email: stringValue(objectField(row, "email"), ""),
     phone: stringValue(objectField(row, "phone"), ""),
-    status: toDriverStatus(intValue(objectField(row, "status"), DriverStatus.PENDING)),
+    status: toDriverStatus(
+      intValue(objectField(row, "status"), DriverStatus.ADDITIONAL_DETAILS_SENT)
+    ),
     appliedAt: stringValue(objectField(row, "applied_at"), ""),
     dateOfBirth: stringValue(objectField(row, "date_of_birth"), ""),
     nationalInsuranceNumber: stringValue(
@@ -289,7 +312,7 @@ function seedDrivers(): Driver[] {
       lastName: "Doe",
       email: "jane@example.com",
       phone: "+1 555-0101",
-      status: DriverStatus.APPROVED,
+      status: DriverStatus.AWAITING_INDUCTION,
       appliedAt: "2025-01-15T10:00:00Z",
       dateOfBirth: "1994-04-11",
       nationalInsuranceNumber: "QQ123456C",
@@ -323,7 +346,7 @@ function seedDrivers(): Driver[] {
       lastName: "Smith",
       email: "john@example.com",
       phone: "+1 555-0102",
-      status: DriverStatus.PENDING,
+      status: DriverStatus.ADDITIONAL_DETAILS_SENT,
       appliedAt: "2025-02-01T14:30:00Z",
       dateOfBirth: "1992-08-21",
       nationalInsuranceNumber: "QQ223456D",
@@ -357,7 +380,7 @@ function seedDrivers(): Driver[] {
       lastName: "Rivera",
       email: "alex.rivera@example.com",
       phone: "+1 555-0103",
-      status: DriverStatus.PENDING,
+      status: DriverStatus.ADDITIONAL_DETAILS_COMPLETED,
       appliedAt: "2025-02-10T09:15:00Z",
       dateOfBirth: "1990-02-03",
       nationalInsuranceNumber: "QQ323456E",
@@ -425,7 +448,7 @@ function seedDrivers(): Driver[] {
       lastName: "Lee",
       email: "jordan.lee@example.com",
       phone: "+1 555-0105",
-      status: DriverStatus.APPROVED,
+      status: DriverStatus.INTERNAL_DETAILS_COMPLETED,
       appliedAt: "2025-02-05T16:45:00Z",
       dateOfBirth: "1996-12-29",
       nationalInsuranceNumber: "QQ523456G",
@@ -768,6 +791,26 @@ export class AppDatabase {
     return this.loadDriver(id);
   }
 
+  createDriver(next: Driver, actor: string): Driver {
+    this.insertDriver(next);
+    this.insertAudit({
+      id: `audit-${next.id}-1`,
+      driverId: next.id,
+      actor,
+      action: AuditAction.CREATED,
+      timestamp: isoNow(),
+      field: "driver",
+      oldValue: "",
+      newValue: "created",
+      note: "Driver created",
+    });
+    const created = this.loadDriver(next.id);
+    if (!created) {
+      throw new Error("Failed to create driver");
+    }
+    return created;
+  }
+
   listDrivers(request: ListDriversRequest): ListDriversResponse {
     const pageSize = request.pageSize && request.pageSize > 0 ? request.pageSize : 10;
     const pageToken = request.pageToken ?? "";
@@ -872,8 +915,12 @@ export class AppDatabase {
     }).drivers;
 
     const byStatus: Record<string, number> = {
-      PENDING: 0,
-      APPROVED: 0,
+      ADDITIONAL_DETAILS_SENT: 0,
+      ADDITIONAL_DETAILS_COMPLETED: 0,
+      INTERNAL_DETAILS_SENT: 0,
+      INTERNAL_DETAILS_COMPLETED: 0,
+      AWAITING_INDUCTION: 0,
+      WITHDRAWN: 0,
       REJECTED: 0,
     };
 

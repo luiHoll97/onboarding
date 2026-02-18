@@ -1,7 +1,11 @@
 # Proto-first: mirrors driver.v1. Resolvers receive proto-shaped parents and map to GQL.
 enum DriverStatus {
-  PENDING
-  APPROVED
+  ADDITIONAL_DETAILS_SENT
+  ADDITIONAL_DETAILS_COMPLETED
+  INTERNAL_DETAILS_SENT
+  INTERNAL_DETAILS_COMPLETED
+  AWAITING_INDUCTION
+  WITHDRAWN
   REJECTED
 }
 
@@ -151,6 +155,15 @@ input UpdateDriverInput {
   notes: String
 }
 
+input CreateDriverInput {
+  firstName: String!
+  lastName: String!
+  email: String!
+  phone: String
+  status: DriverStatus
+  notes: String
+}
+
 type Query {
   me: AdminUser
   webhooks(provider: String, limit: Int): [WebhookEvent!]!
@@ -172,6 +185,7 @@ type Mutation {
   createAdmin(input: CreateAdminInput!): AdminUser
   updateAdminAccess(input: UpdateAdminAccessInput!): AdminUser
   deleteAdmin(id: ID!): Boolean!
+  createDriver(input: CreateDriverInput!, actor: String): Driver
   updateDriver(input: UpdateDriverInput!, actor: String): Driver
   sendAdditionalDetailsForm(driverId: ID!, mondayId: String): SentFormInvitation!
 }

@@ -2,6 +2,12 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { gql } from "@apollo/client";
+import {
+  DRIVER_STATUS_VALUES,
+  driverStatusColors,
+  driverStatusLabels,
+  type DriverStatus,
+} from "../driverStatus.ts";
 
 const DRIVER_FIELDS = `
   id
@@ -83,8 +89,6 @@ const ME_PERMISSIONS_QUERY = gql`
     }
   }
 `;
-
-type DriverStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 type AuditEvent = {
   id: string;
@@ -262,7 +266,7 @@ function emptyForm(id: string): DriverForm {
     lastName: "",
     email: "",
     phone: "",
-    status: "PENDING",
+    status: "ADDITIONAL_DETAILS_SENT",
     appliedAt: "",
     dateOfBirth: "",
     nationalInsuranceNumber: "",
@@ -291,13 +295,12 @@ function emptyForm(id: string): DriverForm {
 }
 
 function StatusBadge({ status }: { status: DriverStatus }) {
-  const classes =
-    status === "APPROVED"
-      ? "bg-emerald-100 text-emerald-800"
-      : status === "REJECTED"
-        ? "bg-rose-100 text-rose-800"
-        : "bg-amber-100 text-amber-800";
-  return <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${classes}`}>{status}</span>;
+  const classes = driverStatusColors[status];
+  return (
+    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${classes}`}>
+      {driverStatusLabels[status]}
+    </span>
+  );
 }
 
 function inputClassName() {
@@ -489,7 +492,16 @@ export function DriverDetail() {
               <label className="grid gap-1 text-sm text-slate-500">Last name<input className={inputClassName()} value={form.lastName} onChange={onInputChange("lastName")} required /></label>
               <label className="grid gap-1 text-sm text-slate-500">Email<input className={inputClassName()} type="email" value={form.email} onChange={onInputChange("email")} required /></label>
               <label className="grid gap-1 text-sm text-slate-500">Phone<input className={inputClassName()} value={form.phone} onChange={onInputChange("phone")} /></label>
-              <label className="grid gap-1 text-sm text-slate-500">Status<select className={inputClassName()} value={form.status} onChange={onInputChange("status")}><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label>
+              <label className="grid gap-1 text-sm text-slate-500">
+                Status
+                <select className={inputClassName()} value={form.status} onChange={onInputChange("status")}>
+                  {DRIVER_STATUS_VALUES.map((status) => (
+                    <option key={status} value={status}>
+                      {driverStatusLabels[status]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="grid gap-1 text-sm text-slate-500">Applied at<input className={inputClassName()} type="datetime-local" value={form.appliedAt} onChange={onInputChange("appliedAt")} /></label>
               <label className="grid gap-1 text-sm text-slate-500">Date of birth<input className={inputClassName()} type="date" value={form.dateOfBirth} onChange={onInputChange("dateOfBirth")} /></label>
               <label className="grid gap-1 text-sm text-slate-500">Vehicle type<input className={inputClassName()} value={form.vehicleType} onChange={onInputChange("vehicleType")} /></label>

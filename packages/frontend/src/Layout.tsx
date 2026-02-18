@@ -67,6 +67,18 @@ export function Layout() {
             Dashboard
           </NavLink>
           <NavLink
+            to="/drivers"
+            className={({ isActive }) =>
+              `block rounded-md px-3 py-2 text-sm transition ${
+                isActive
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`
+            }
+          >
+            Drivers
+          </NavLink>
+          <NavLink
             to="/stats"
             className={({ isActive }) =>
               `block rounded-md px-3 py-2 text-sm transition ${

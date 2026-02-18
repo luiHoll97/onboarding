@@ -39,9 +39,13 @@ message Driver {
 
 enum DriverStatus {
   DRIVER_STATUS_UNSPECIFIED = 0;
-  DRIVER_STATUS_PENDING = 1;
-  DRIVER_STATUS_APPROVED = 2;
-  DRIVER_STATUS_REJECTED = 3;
+  DRIVER_STATUS_ADDITIONAL_DETAILS_SENT = 1;
+  DRIVER_STATUS_ADDITIONAL_DETAILS_COMPLETED = 2;
+  DRIVER_STATUS_INTERNAL_DETAILS_SENT = 3;
+  DRIVER_STATUS_INTERNAL_DETAILS_COMPLETED = 4;
+  DRIVER_STATUS_AWAITING_INDUCTION = 5;
+  DRIVER_STATUS_WITHDRAWN = 6;
+  DRIVER_STATUS_REJECTED = 7;
 }
 
 message GetDriverRequest {
@@ -98,6 +102,15 @@ message UpdateDriverRequest {
 }
 
 message UpdateDriverResponse {
+  Driver driver = 1;
+}
+
+message CreateDriverRequest {
+  Driver driver = 1;
+  string actor = 2;
+}
+
+message CreateDriverResponse {
   Driver driver = 1;
 }
 

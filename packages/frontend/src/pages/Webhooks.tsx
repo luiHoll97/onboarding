@@ -42,12 +42,12 @@ const mappingRows = [
   {
     source: "02bac3a4-d6e6-4bd8-a944-8648612ab95f",
     mappedTo: "emergency_contact_relationship",
-    targetField: "Driver.notes",
+    targetField: "Driver.emergencyContactRelationship",
   },
   {
     source: "185eb1c7-20bb-4ea9-984a-a8aa1732c01e",
     mappedTo: "preferred_days_per_week",
-    targetField: "Driver.notes",
+    targetField: "Driver.preferredDaysPerWeek",
   },
   {
     source: "b458f157-4547-4279-bc8f-7f1a5f341413",
@@ -57,7 +57,12 @@ const mappingRows = [
   {
     source: "07cc1c10-b4e4-4f01-9774-073cb5cae0f8",
     mappedTo: "preferred_start_date",
-    targetField: "Driver.notes",
+    targetField: "Driver.preferredStartDate",
+  },
+  {
+    source: "bbc1908b-14c5-4b99-8365-5055c2c9cefc",
+    mappedTo: "details_confirmed",
+    targetField: "Driver.detailsConfirmedByDriver (yes/no)",
   },
 ];
 

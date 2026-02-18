@@ -15,6 +15,8 @@ import {
   type ListDriversResponse,
   type SendAdditionalDetailsFormRequest,
   type SendAdditionalDetailsFormResponse,
+  type CreateDriverRequest,
+  type CreateDriverResponse,
   type UpdateDriverRequest,
   type UpdateDriverResponse,
 } from "@driver-onboarding/proto";
@@ -52,8 +54,18 @@ function parseInteger(value: unknown, fallback: number): number {
 }
 
 function parseDriverStatus(value: unknown, fallback: DriverStatus): DriverStatus {
-  if (value === DriverStatus.PENDING) return DriverStatus.PENDING;
-  if (value === DriverStatus.APPROVED) return DriverStatus.APPROVED;
+  if (value === DriverStatus.ADDITIONAL_DETAILS_SENT) {
+    return DriverStatus.ADDITIONAL_DETAILS_SENT;
+  }
+  if (value === DriverStatus.ADDITIONAL_DETAILS_COMPLETED) {
+    return DriverStatus.ADDITIONAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.INTERNAL_DETAILS_SENT) return DriverStatus.INTERNAL_DETAILS_SENT;
+  if (value === DriverStatus.INTERNAL_DETAILS_COMPLETED) {
+    return DriverStatus.INTERNAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.AWAITING_INDUCTION) return DriverStatus.AWAITING_INDUCTION;
+  if (value === DriverStatus.WITHDRAWN) return DriverStatus.WITHDRAWN;
   if (value === DriverStatus.REJECTED) return DriverStatus.REJECTED;
   return fallback;
 }
@@ -91,7 +103,10 @@ function parseDriver(value: unknown): Driver {
     lastName: parseString(objectField(value, "lastName"), ""),
     email: parseString(objectField(value, "email"), ""),
     phone: parseString(objectField(value, "phone"), ""),
-    status: parseDriverStatus(objectField(value, "status"), DriverStatus.PENDING),
+    status: parseDriverStatus(
+      objectField(value, "status"),
+      DriverStatus.ADDITIONAL_DETAILS_SENT
+    ),
     appliedAt: parseString(objectField(value, "appliedAt"), ""),
     dateOfBirth: parseString(objectField(value, "dateOfBirth"), ""),
     nationalInsuranceNumber: parseString(
@@ -180,14 +195,37 @@ function parseBatchGetDriversResponse(value: unknown): BatchGetDriversResponse {
 function parseGetDriverStatsResponse(value: unknown): GetDriverStatsResponse {
   const rawByStatus = objectField(value, "byStatus");
   const byStatus: Record<string, number> = {
-    PENDING: 0,
-    APPROVED: 0,
+    ADDITIONAL_DETAILS_SENT: 0,
+    ADDITIONAL_DETAILS_COMPLETED: 0,
+    INTERNAL_DETAILS_SENT: 0,
+    INTERNAL_DETAILS_COMPLETED: 0,
+    AWAITING_INDUCTION: 0,
+    WITHDRAWN: 0,
     REJECTED: 0,
   };
 
   if (typeof rawByStatus === "object" && rawByStatus !== null) {
-    byStatus.PENDING = parseInteger(objectField(rawByStatus, "PENDING"), 0);
-    byStatus.APPROVED = parseInteger(objectField(rawByStatus, "APPROVED"), 0);
+    byStatus.ADDITIONAL_DETAILS_SENT = parseInteger(
+      objectField(rawByStatus, "ADDITIONAL_DETAILS_SENT"),
+      0
+    );
+    byStatus.ADDITIONAL_DETAILS_COMPLETED = parseInteger(
+      objectField(rawByStatus, "ADDITIONAL_DETAILS_COMPLETED"),
+      0
+    );
+    byStatus.INTERNAL_DETAILS_SENT = parseInteger(
+      objectField(rawByStatus, "INTERNAL_DETAILS_SENT"),
+      0
+    );
+    byStatus.INTERNAL_DETAILS_COMPLETED = parseInteger(
+      objectField(rawByStatus, "INTERNAL_DETAILS_COMPLETED"),
+      0
+    );
+    byStatus.AWAITING_INDUCTION = parseInteger(
+      objectField(rawByStatus, "AWAITING_INDUCTION"),
+      0
+    );
+    byStatus.WITHDRAWN = parseInteger(objectField(rawByStatus, "WITHDRAWN"), 0);
     byStatus.REJECTED = parseInteger(objectField(rawByStatus, "REJECTED"), 0);
   }
 
@@ -198,6 +236,13 @@ function parseGetDriverStatsResponse(value: unknown): GetDriverStatsResponse {
 }
 
 function parseUpdateDriverResponse(value: unknown): UpdateDriverResponse {
+  const rawDriver = objectField(value, "driver");
+  return {
+    driver: rawDriver ? parseDriver(rawDriver) : undefined,
+  };
+}
+
+function parseCreateDriverResponse(value: unknown): CreateDriverResponse {
   const rawDriver = objectField(value, "driver");
   return {
     driver: rawDriver ? parseDriver(rawDriver) : undefined,
@@ -276,6 +321,15 @@ export class DriverServiceClient {
       params
     );
     return parseUpdateDriverResponse(result);
+  }
+
+  async createDriver(params: CreateDriverRequest): Promise<CreateDriverResponse> {
+    const result = await callServicesRpc(
+      this.baseUrl,
+      driverRpcMethods.createDriver,
+      params
+    );
+    return parseCreateDriverResponse(result);
   }
 
   async sendAdditionalDetailsForm(

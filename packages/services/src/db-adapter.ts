@@ -29,6 +29,7 @@ import { createPostgresDatabase } from "./db-postgres.js";
 
 export interface DatabaseAdapter {
   getDriver(id: string): Promise<Driver | undefined>;
+  createDriver(next: Driver, actor: string): Promise<Driver>;
   listDrivers(request: ListDriversRequest): Promise<ListDriversResponse>;
   getDriversByFilters(
     request: GetDriversByFiltersRequest
@@ -64,6 +65,9 @@ class SqliteDatabaseAdapter implements DatabaseAdapter {
 
   async getDriver(id: string): Promise<Driver | undefined> {
     return this.db.getDriver(id);
+  }
+  async createDriver(next: Driver, actor: string): Promise<Driver> {
+    return this.db.createDriver(next, actor);
   }
   async listDrivers(request: ListDriversRequest): Promise<ListDriversResponse> {
     return this.db.listDrivers(request);

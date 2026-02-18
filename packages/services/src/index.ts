@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import {
   AdminPermission,
@@ -13,6 +14,7 @@ import {
   type GetDriverStatsRequest,
   type ListDriversRequest,
   type UpdateDriverRequest,
+  type CreateDriverRequest,
 } from "@driver-onboarding/proto";
 import type {
   CreatePrefilledFormLinkRequest,
@@ -95,8 +97,18 @@ function parseBoolean(value: unknown, fallback: boolean): boolean {
 
 function parseDriverStatus(value: unknown): DriverStatus | undefined {
   if (value === DriverStatus.UNSPECIFIED) return DriverStatus.UNSPECIFIED;
-  if (value === DriverStatus.PENDING) return DriverStatus.PENDING;
-  if (value === DriverStatus.APPROVED) return DriverStatus.APPROVED;
+  if (value === DriverStatus.ADDITIONAL_DETAILS_SENT) {
+    return DriverStatus.ADDITIONAL_DETAILS_SENT;
+  }
+  if (value === DriverStatus.ADDITIONAL_DETAILS_COMPLETED) {
+    return DriverStatus.ADDITIONAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.INTERNAL_DETAILS_SENT) return DriverStatus.INTERNAL_DETAILS_SENT;
+  if (value === DriverStatus.INTERNAL_DETAILS_COMPLETED) {
+    return DriverStatus.INTERNAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.AWAITING_INDUCTION) return DriverStatus.AWAITING_INDUCTION;
+  if (value === DriverStatus.WITHDRAWN) return DriverStatus.WITHDRAWN;
   if (value === DriverStatus.REJECTED) return DriverStatus.REJECTED;
   return undefined;
 }
@@ -249,6 +261,73 @@ function parseUpdateDriverRequest(value: unknown, current: Driver): UpdateDriver
       ),
       notes: parseString(objectField(rawDriver, "notes"), current.notes),
       auditTrail: current.auditTrail,
+    },
+  };
+}
+
+function parseCreateDriverRequest(value: unknown): CreateDriverRequest {
+  const actor = parseString(objectField(value, "actor"), "system");
+  const rawDriver = objectField(value, "driver");
+  if (!rawDriver) {
+    return { actor, driver: undefined };
+  }
+
+  const firstName = parseString(objectField(rawDriver, "firstName"), "").trim();
+  const lastName = parseString(objectField(rawDriver, "lastName"), "").trim();
+  const fallbackName = `${firstName} ${lastName}`.trim();
+
+  return {
+    actor,
+    driver: {
+      id: randomUUID(),
+      name: parseString(objectField(rawDriver, "name"), fallbackName),
+      firstName,
+      lastName,
+      email: parseString(objectField(rawDriver, "email"), "").trim(),
+      phone: parseString(objectField(rawDriver, "phone"), ""),
+      status:
+        parseDriverStatus(objectField(rawDriver, "status")) ??
+        DriverStatus.ADDITIONAL_DETAILS_SENT,
+      appliedAt: parseString(objectField(rawDriver, "appliedAt"), new Date().toISOString()),
+      dateOfBirth: parseString(objectField(rawDriver, "dateOfBirth"), ""),
+      nationalInsuranceNumber: parseString(
+        objectField(rawDriver, "nationalInsuranceNumber"),
+        ""
+      ),
+      rightToWorkCheckCode: parseString(
+        objectField(rawDriver, "rightToWorkCheckCode"),
+        ""
+      ),
+      inductionDate: parseString(objectField(rawDriver, "inductionDate"), ""),
+      interviewDate: parseString(objectField(rawDriver, "interviewDate"), ""),
+      idDocumentType: parseString(objectField(rawDriver, "idDocumentType"), ""),
+      idDocumentNumber: parseString(objectField(rawDriver, "idDocumentNumber"), ""),
+      idCheckCompleted: parseBoolean(objectField(rawDriver, "idCheckCompleted"), false),
+      idCheckCompletedAt: parseString(objectField(rawDriver, "idCheckCompletedAt"), ""),
+      driversLicenseNumber: parseString(objectField(rawDriver, "driversLicenseNumber"), ""),
+      driversLicenseExpiryDate: parseString(
+        objectField(rawDriver, "driversLicenseExpiryDate"),
+        ""
+      ),
+      addressLine1: parseString(objectField(rawDriver, "addressLine1"), ""),
+      addressLine2: parseString(objectField(rawDriver, "addressLine2"), ""),
+      city: parseString(objectField(rawDriver, "city"), ""),
+      postcode: parseString(objectField(rawDriver, "postcode"), ""),
+      emergencyContactName: parseString(objectField(rawDriver, "emergencyContactName"), ""),
+      emergencyContactPhone: parseString(objectField(rawDriver, "emergencyContactPhone"), ""),
+      emergencyContactRelationship: parseString(
+        objectField(rawDriver, "emergencyContactRelationship"),
+        ""
+      ),
+      vehicleType: parseString(objectField(rawDriver, "vehicleType"), ""),
+      preferredDaysPerWeek: parseString(objectField(rawDriver, "preferredDaysPerWeek"), ""),
+      preferredStartDate: parseString(objectField(rawDriver, "preferredStartDate"), ""),
+      detailsConfirmedByDriver: parseString(
+        objectField(rawDriver, "detailsConfirmedByDriver"),
+        ""
+      ),
+      notes: parseString(objectField(rawDriver, "notes"), ""),
+      auditTrail: [],
     },
   };
 }
@@ -756,6 +835,7 @@ const rpcMethods = {
   batchGetDrivers: "driver.v1.DriverService.BatchGetDrivers",
   getDriverStats: "driver.v1.DriverService.GetDriverStats",
   updateDriver: "driver.v1.DriverService.UpdateDriver",
+  createDriver: "driver.v1.DriverService.CreateDriver",
   sendAdditionalDetailsForm: "driver.v1.DriverService.SendAdditionalDetailsForm",
   login: "svc.core.auth.AuthService.Login",
   validateSession: "svc.core.auth.AuthService.ValidateSession",
@@ -784,6 +864,7 @@ function resolveRpcMethod(method: string): RpcMethod | undefined {
         key === "batchGetDrivers" ||
         key === "getDriverStats" ||
         key === "updateDriver" ||
+        key === "createDriver" ||
         key === "sendAdditionalDetailsForm" ||
         key === "login" ||
         key === "validateSession" ||
@@ -835,6 +916,22 @@ async function callRpc(method: RpcMethod, params: unknown): Promise<unknown> {
       return { driver: undefined };
     }
     return { driver: await db.updateDriver(request.driver, request.actor ?? "system") };
+  }
+  if (method === "createDriver") {
+    const request = parseCreateDriverRequest(params);
+    if (!request.driver) {
+      return { driver: undefined };
+    }
+    if (!request.driver.firstName || !request.driver.lastName || !request.driver.email) {
+      throw new Error("First name, last name and email are required");
+    }
+    const normalizedName = request.driver.name.trim();
+    request.driver.name =
+      normalizedName ||
+      `${request.driver.firstName} ${request.driver.lastName}`.trim();
+    return {
+      driver: await db.createDriver(request.driver, request.actor ?? "system"),
+    };
   }
   if (method === "sendAdditionalDetailsForm") {
     const request = parseSendAdditionalDetailsFormRequest(params);

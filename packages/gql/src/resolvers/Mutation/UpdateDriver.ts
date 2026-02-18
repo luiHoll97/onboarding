@@ -1,12 +1,7 @@
-import { AdminPermission, DriverStatus, type Driver } from "@driver-onboarding/proto";
-import { DriverStatus as GqlDriverStatus, type Resolvers } from "../../generated/graphql.js";
+import { AdminPermission, type Driver } from "@driver-onboarding/proto";
+import type { Resolvers } from "../../generated/graphql.js";
 import { requirePermission } from "../auth.js";
-
-function mapStatus(status: GqlDriverStatus): DriverStatus {
-  if (status === GqlDriverStatus.Approved) return DriverStatus.APPROVED;
-  if (status === GqlDriverStatus.Rejected) return DriverStatus.REJECTED;
-  return DriverStatus.PENDING;
-}
+import { driverStatusToProto } from "../driver-status.js";
 
 export const UpdateDriverMutation: NonNullable<
   Resolvers["Mutation"]
@@ -25,7 +20,7 @@ export const UpdateDriverMutation: NonNullable<
     lastName: input.lastName,
     email: input.email,
     phone: input.phone ?? "",
-    status: mapStatus(input.status),
+    status: driverStatusToProto(input.status),
     appliedAt: input.appliedAt ?? "",
     dateOfBirth: input.dateOfBirth ?? "",
     nationalInsuranceNumber: input.nationalInsuranceNumber ?? "",

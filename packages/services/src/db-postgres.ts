@@ -48,9 +48,22 @@ function passwordHash(password: string, salt: string): string {
 }
 
 function toDriverStatus(value: unknown): DriverStatus {
-  if (value === DriverStatus.APPROVED) return DriverStatus.APPROVED;
+  if (value === DriverStatus.ADDITIONAL_DETAILS_SENT) return DriverStatus.ADDITIONAL_DETAILS_SENT;
+  if (value === DriverStatus.ADDITIONAL_DETAILS_COMPLETED) {
+    return DriverStatus.ADDITIONAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.INTERNAL_DETAILS_SENT) return DriverStatus.INTERNAL_DETAILS_SENT;
+  if (value === DriverStatus.INTERNAL_DETAILS_COMPLETED) {
+    return DriverStatus.INTERNAL_DETAILS_COMPLETED;
+  }
+  if (value === DriverStatus.AWAITING_INDUCTION) return DriverStatus.AWAITING_INDUCTION;
+  if (value === DriverStatus.WITHDRAWN) return DriverStatus.WITHDRAWN;
   if (value === DriverStatus.REJECTED) return DriverStatus.REJECTED;
-  return DriverStatus.PENDING;
+  // Legacy values from previous status model.
+  if (value === 1) return DriverStatus.ADDITIONAL_DETAILS_SENT;
+  if (value === 2) return DriverStatus.AWAITING_INDUCTION;
+  if (value === 3) return DriverStatus.REJECTED;
+  return DriverStatus.ADDITIONAL_DETAILS_SENT;
 }
 
 function toAuditAction(value: unknown): AuditAction {
@@ -61,9 +74,17 @@ function toAuditAction(value: unknown): AuditAction {
 }
 
 function statusLabel(status: DriverStatus): string {
-  if (status === DriverStatus.APPROVED) return "APPROVED";
+  if (status === DriverStatus.ADDITIONAL_DETAILS_COMPLETED) {
+    return "ADDITIONAL_DETAILS_COMPLETED";
+  }
+  if (status === DriverStatus.INTERNAL_DETAILS_SENT) return "INTERNAL_DETAILS_SENT";
+  if (status === DriverStatus.INTERNAL_DETAILS_COMPLETED) {
+    return "INTERNAL_DETAILS_COMPLETED";
+  }
+  if (status === DriverStatus.AWAITING_INDUCTION) return "AWAITING_INDUCTION";
+  if (status === DriverStatus.WITHDRAWN) return "WITHDRAWN";
   if (status === DriverStatus.REJECTED) return "REJECTED";
-  return "PENDING";
+  return "ADDITIONAL_DETAILS_SENT";
 }
 
 function normalizePermission(permission: AdminPermission): AdminPermission {
@@ -407,6 +428,86 @@ class PostgresDatabase implements DatabaseAdapter {
     return this.loadDriver(id);
   }
 
+  async createDriver(next: Driver, actor: string): Promise<Driver> {
+    await this.pool.query(
+      `INSERT INTO drivers (
+        id, name, first_name, last_name, email, phone, status, applied_at,
+        date_of_birth, national_insurance_number, right_to_work_check_code,
+        induction_date, interview_date, id_document_type, id_document_number,
+        id_check_completed, id_check_completed_at, drivers_license_number,
+        drivers_license_expiry_date, address_line_1, address_line_2, city,
+        postcode, emergency_contact_name, emergency_contact_phone,
+        emergency_contact_relationship, vehicle_type, preferred_days_per_week,
+        preferred_start_date, details_confirmed_by_driver, notes, created_at, updated_at
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,
+        $9,$10,$11,
+        $12,$13,$14,$15,
+        $16,$17,$18,
+        $19,$20,$21,$22,
+        $23,$24,$25,
+        $26,$27,$28,
+        $29,$30,$31,$32,$33
+      )`,
+      [
+        next.id,
+        next.name,
+        next.firstName,
+        next.lastName,
+        next.email,
+        next.phone ?? "",
+        next.status,
+        next.appliedAt ?? "",
+        next.dateOfBirth,
+        next.nationalInsuranceNumber,
+        next.rightToWorkCheckCode,
+        next.inductionDate,
+        next.interviewDate,
+        next.idDocumentType,
+        next.idDocumentNumber,
+        next.idCheckCompleted ? 1 : 0,
+        next.idCheckCompletedAt,
+        next.driversLicenseNumber,
+        next.driversLicenseExpiryDate,
+        next.addressLine1,
+        next.addressLine2,
+        next.city,
+        next.postcode,
+        next.emergencyContactName,
+        next.emergencyContactPhone,
+        next.emergencyContactRelationship,
+        next.vehicleType,
+        next.preferredDaysPerWeek,
+        next.preferredStartDate,
+        next.detailsConfirmedByDriver,
+        next.notes,
+        isoNow(),
+        isoNow(),
+      ]
+    );
+    await this.pool.query(
+      `INSERT INTO audit_events (
+        id, driver_id, actor, action, timestamp, field, old_value, new_value, note
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        `audit-${next.id}-1`,
+        next.id,
+        actor,
+        AuditAction.CREATED,
+        isoNow(),
+        "driver",
+        "",
+        "created",
+        "Driver created",
+      ]
+    );
+    const created = await this.loadDriver(next.id);
+    if (!created) {
+      throw new Error("Failed to create driver");
+    }
+    return created;
+  }
+
   async listDrivers(request: ListDriversRequest): Promise<ListDriversResponse> {
     const pageSize = request.pageSize && request.pageSize > 0 ? request.pageSize : 10;
     const pageToken = request.pageToken ?? "";
@@ -485,8 +586,12 @@ class PostgresDatabase implements DatabaseAdapter {
       search: request.search,
     });
     const byStatus: Record<string, number> = {
-      PENDING: 0,
-      APPROVED: 0,
+      ADDITIONAL_DETAILS_SENT: 0,
+      ADDITIONAL_DETAILS_COMPLETED: 0,
+      INTERNAL_DETAILS_SENT: 0,
+      INTERNAL_DETAILS_COMPLETED: 0,
+      AWAITING_INDUCTION: 0,
+      WITHDRAWN: 0,
       REJECTED: 0,
     };
     for (const driver of filtered.drivers) {

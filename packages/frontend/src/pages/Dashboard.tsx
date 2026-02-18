@@ -1,166 +1,150 @@
-import { useState, useMemo } from "react";
 import { useQuery } from "@apollo/client/react";
 import { gql } from "@apollo/client";
-import { useNavigate } from "react-router-dom";
+import {
+  DRIVER_STATUS_VALUES,
+  driverStatusLabels,
+  type DriverStatus,
+} from "../driverStatus.ts";
 
-const DRIVERS_BY_FILTERS = gql`
-  query DriversByFilters($filters: DriverFiltersInput, $pageSize: Int, $pageToken: String) {
-    driversByFilters(filters: $filters, pageSize: $pageSize, pageToken: $pageToken) {
-      drivers {
-        id
-        name
-        email
-        phone
+const STATS_QUERY = gql`
+  query DashboardStats {
+    stats {
+      byStatus {
         status
-        appliedAt
+        count
       }
-      nextPageToken
+      total
     }
   }
 `;
 
-type Driver = {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  status: string;
-  appliedAt?: string | null;
-};
 type Data = {
-  driversByFilters: { drivers: Driver[]; nextPageToken?: string | null };
+  stats: {
+    byStatus: Array<{ status: DriverStatus; count: number }>;
+    total: number;
+  };
 };
 
-function formatDate(s: string | null | undefined) {
-  if (!s) return "—";
-  try {
-    return new Date(s).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return s;
-  }
+const chartColors: Record<DriverStatus, string> = {
+  ADDITIONAL_DETAILS_SENT: "#d97706",
+  ADDITIONAL_DETAILS_COMPLETED: "#10b981",
+  INTERNAL_DETAILS_SENT: "#0ea5e9",
+  INTERNAL_DETAILS_COMPLETED: "#2563eb",
+  AWAITING_INDUCTION: "#8b5cf6",
+  WITHDRAWN: "#64748b",
+  REJECTED: "#dc2626",
+};
+
+function polarToCartesian(cx: number, cy: number, radius: number, angleDeg: number) {
+  const radians = ((angleDeg - 90) * Math.PI) / 180;
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  };
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const classes =
-    status === "APPROVED"
-      ? "bg-emerald-100 text-emerald-800"
-      : status === "REJECTED"
-        ? "bg-rose-100 text-rose-800"
-        : "bg-amber-100 text-amber-800";
-
-  return (
-    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${classes}`}>
-      {status}
-    </span>
-  );
+function arcPath(
+  cx: number,
+  cy: number,
+  radius: number,
+  startAngle: number,
+  endAngle: number
+): string {
+  const start = polarToCartesian(cx, cy, radius, endAngle);
+  const end = polarToCartesian(cx, cy, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
 }
 
 export function Dashboard() {
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [search, setSearch] = useState("");
-  const navigate = useNavigate();
-
-  const filters = useMemo(() => {
-    const f: { status?: string; search?: string } = {};
-    if (statusFilter) f.status = statusFilter;
-    if (search.trim()) f.search = search.trim();
-    return Object.keys(f).length ? f : undefined;
-  }, [statusFilter, search]);
-
-  const { data, loading, error } = useQuery<Data>(DRIVERS_BY_FILTERS, {
-    variables: { filters, pageSize: 50 },
-  });
-
-  if (loading) return <div className="py-8 text-center text-slate-500">Loading drivers…</div>;
+  const { data, loading, error } = useQuery<Data>(STATS_QUERY);
+  if (loading) return <div className="py-8 text-center text-slate-500">Loading dashboard…</div>;
   if (error) return <div className="py-8 text-center text-red-700">Error: {error.message}</div>;
 
-  const drivers = data?.driversByFilters?.drivers ?? [];
+  const stats = data?.stats ?? { byStatus: [], total: 0 };
+  const byStatus = DRIVER_STATUS_VALUES.map((status) => ({
+    status,
+    count: stats.byStatus.find((item) => item.status === status)?.count ?? 0,
+  }));
+  const total = stats.total;
+  const inProcess =
+    total -
+    (byStatus.find((item) => item.status === "WITHDRAWN")?.count ?? 0) -
+    (byStatus.find((item) => item.status === "REJECTED")?.count ?? 0);
+
+  let currentAngle = 0;
+  const segments = byStatus
+    .filter((item) => item.count > 0)
+    .map((item) => {
+      const sweep = total > 0 ? (item.count / total) * 360 : 0;
+      const path = arcPath(100, 100, 90, currentAngle, currentAngle + sweep);
+      currentAngle += sweep;
+      return { ...item, path };
+    });
 
   return (
-    <>
-      <div className="mb-6">
+    <div className="space-y-6">
+      <div>
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500">Drivers in application. Filter and open a row to view details.</p>
+        <p className="text-sm text-slate-500">Overview of onboarding pipeline health.</p>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          aria-label="Filter by status"
-          className="min-w-44 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-        >
-          <option value="">All statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-        </select>
-        <input
-          type="search"
-          placeholder="Search name or email…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Search drivers"
-          className="min-w-60 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">{total}</div>
+          <div className="mt-1 text-sm text-slate-500">Total drivers</div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">{Math.max(0, inProcess)}</div>
+          <div className="mt-1 text-sm text-slate-500">Drivers in process</div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-3xl font-bold text-slate-900">
+            {byStatus.find((item) => item.status === "AWAITING_INDUCTION")?.count ?? 0}
+          </div>
+          <div className="mt-1 text-sm text-slate-500">Awaiting induction</div>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-slate-50">
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Name
-              </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Email
-              </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Phone
-              </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Status
-              </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Applied
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {drivers.map((d) => (
-              <tr
-                key={d.id}
-                onClick={() => navigate(`/driver/${d.id}`)}
-                role="button"
-                tabIndex={0}
-                className="cursor-pointer transition hover:bg-slate-50"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    navigate(`/driver/${d.id}`);
-                  }
-                }}
-              >
-                <td className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">{d.name}</td>
-                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">{d.email}</td>
-                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">{d.phone ?? "—"}</td>
-                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">
-                  <StatusBadge status={d.status} />
-                </td>
-                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">{formatDate(d.appliedAt)}</td>
-              </tr>
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <svg viewBox="0 0 200 200" role="img" aria-label="Drivers by status">
+            {segments.length === 0 ? (
+              <circle cx="100" cy="100" r="90" fill="#e5e7eb" />
+            ) : (
+              segments.map((segment) => (
+                <path
+                  key={segment.status}
+                  d={segment.path}
+                  fill={chartColors[segment.status]}
+                  stroke="#fff"
+                  strokeWidth="1"
+                />
+              ))
+            )}
+            <circle cx="100" cy="100" r="44" fill="#fff" />
+            <text x="100" y="96" textAnchor="middle" className="fill-slate-900 text-[1.1rem] font-bold">
+              {total}
+            </text>
+            <text x="100" y="113" textAnchor="middle" className="fill-slate-500 text-xs">
+              Total
+            </text>
+          </svg>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-slate-800">By Status</h2>
+          <ul className="grid gap-2">
+            {byStatus.map((item) => (
+              <li key={item.status} className="grid grid-cols-[14px_1fr_auto] items-center gap-2 text-sm text-slate-700">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[item.status] }} />
+                <span>{driverStatusLabels[item.status]}</span>
+                <strong>{item.count}</strong>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        </div>
       </div>
-
-      {drivers.length === 0 && (
-        <p className="mt-4 text-sm text-slate-500">No drivers match the current filters.</p>
-      )}
-    </>
+    </div>
   );
 }

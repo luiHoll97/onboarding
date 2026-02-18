@@ -5,6 +5,7 @@ export const driverRpcMethods = {
   batchGetDrivers: "driver.v1.DriverService.BatchGetDrivers",
   getDriverStats: "driver.v1.DriverService.GetDriverStats",
   updateDriver: "driver.v1.DriverService.UpdateDriver",
+  createDriver: "driver.v1.DriverService.CreateDriver",
   sendAdditionalDetailsForm: "driver.v1.DriverService.SendAdditionalDetailsForm",
   login: "svc.core.auth.AuthService.Login",
   validateSession: "svc.core.auth.AuthService.ValidateSession",

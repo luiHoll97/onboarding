@@ -1,6 +1,7 @@
-import { AdminPermission, DriverStatus } from "@driver-onboarding/proto";
-import { DriverStatus as GqlDriverStatus, type Resolvers } from "../../generated/graphql.js";
+import { AdminPermission, type DriverStatus } from "@driver-onboarding/proto";
+import type { Resolvers } from "../../generated/graphql.js";
 import { requirePermission } from "../auth.js";
+import { driverStatusToProto } from "../driver-status.js";
 
 export const DriversByFiltersQuery: NonNullable<
   Resolvers["Query"]
@@ -8,12 +9,7 @@ export const DriversByFiltersQuery: NonNullable<
   requirePermission(ctx, AdminPermission.VIEW_DRIVERS);
   let statusFilter: DriverStatus | undefined;
   if (filters?.status != null) {
-    statusFilter =
-      filters.status === GqlDriverStatus.Pending
-        ? DriverStatus.PENDING
-        : filters.status === GqlDriverStatus.Approved
-          ? DriverStatus.APPROVED
-          : DriverStatus.REJECTED;
+    statusFilter = driverStatusToProto(filters.status);
   }
   const data = await ctx.clients.driverService.getDriversByFilters({
     statusFilter,

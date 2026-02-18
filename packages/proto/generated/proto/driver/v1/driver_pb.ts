@@ -4,9 +4,13 @@
  */
 export enum DriverStatus {
   UNSPECIFIED = 0,
-  PENDING = 1,
-  APPROVED = 2,
-  REJECTED = 3,
+  ADDITIONAL_DETAILS_SENT = 1,
+  ADDITIONAL_DETAILS_COMPLETED = 2,
+  INTERNAL_DETAILS_SENT = 3,
+  INTERNAL_DETAILS_COMPLETED = 4,
+  AWAITING_INDUCTION = 5,
+  WITHDRAWN = 6,
+  REJECTED = 7,
 }
 
 export enum AuditAction {
@@ -116,6 +120,15 @@ export interface UpdateDriverRequest {
 }
 
 export interface UpdateDriverResponse {
+  driver?: Driver;
+}
+
+export interface CreateDriverRequest {
+  driver?: Driver;
+  actor?: string;
+}
+
+export interface CreateDriverResponse {
   driver?: Driver;
 }
 

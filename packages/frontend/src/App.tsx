@@ -3,6 +3,7 @@ import { Layout } from "./Layout.tsx";
 import { RequireAuth } from "./RequireAuth.tsx";
 import { RequirePermission } from "./RequirePermission.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
+import { Drivers } from "./pages/Drivers.tsx";
 import { DriverDetail } from "./pages/DriverDetail.tsx";
 import { Stats } from "./pages/Stats.tsx";
 import { Login } from "./pages/Login.tsx";
@@ -24,6 +25,7 @@ export function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="drivers" element={<Drivers />} />
           <Route path="driver/:id" element={<DriverDetail />} />
           <Route path="stats" element={<Stats />} />
           <Route path="webhooks" element={<Webhooks />} />

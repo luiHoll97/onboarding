@@ -6,6 +6,7 @@ import { UpdateAdminAccessMutation } from "./UpdateAdminAccess.js";
 import { DeleteAdminMutation } from "./DeleteAdmin.js";
 import { SendAdditionalDetailsFormMutation } from "./SendAdditionalDetailsForm.js";
 import { UpdateDriverMutation } from "./UpdateDriver.js";
+import { CreateDriverMutation } from "./CreateDriver.js";
 
 export const Mutation: Resolvers["Mutation"] = {
   login: LoginMutation,
@@ -13,6 +14,7 @@ export const Mutation: Resolvers["Mutation"] = {
   createAdmin: CreateAdminMutation,
   updateAdminAccess: UpdateAdminAccessMutation,
   deleteAdmin: DeleteAdminMutation,
+  createDriver: CreateDriverMutation,
   sendAdditionalDetailsForm: SendAdditionalDetailsFormMutation,
   updateDriver: UpdateDriverMutation,
 };
