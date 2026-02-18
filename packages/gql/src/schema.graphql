@@ -1,0 +1,139 @@
+# Proto-first: mirrors driver.v1. Resolvers receive proto-shaped parents and map to GQL.
+enum DriverStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+type AdminUser {
+  id: ID!
+  email: String!
+  name: String!
+}
+
+type AuthSession {
+  token: String!
+  expiresAt: String!
+  user: AdminUser!
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+}
+
+type AuditEvent {
+  id: ID!
+  actor: String!
+  action: AuditAction!
+  timestamp: String!
+  field: String!
+  oldValue: String!
+  newValue: String!
+  note: String!
+}
+
+type Driver {
+  id: ID!
+  name: String!
+  firstName: String!
+  lastName: String!
+  email: String!
+  phone: String
+  status: DriverStatus!
+  appliedAt: String
+  dateOfBirth: String
+  nationalInsuranceNumber: String
+  rightToWorkCheckCode: String
+  inductionDate: String
+  interviewDate: String
+  idDocumentType: String
+  idDocumentNumber: String
+  idCheckCompleted: Boolean!
+  idCheckCompletedAt: String
+  driversLicenseNumber: String
+  driversLicenseExpiryDate: String
+  addressLine1: String
+  addressLine2: String
+  city: String
+  postcode: String
+  emergencyContactName: String
+  emergencyContactPhone: String
+  vehicleType: String
+  notes: String
+  auditTrail: [AuditEvent!]!
+}
+
+input DriverFiltersInput {
+  status: DriverStatus
+  search: String
+}
+
+input StatsFiltersInput {
+  status: DriverStatus
+  search: String
+}
+
+input UpdateDriverInput {
+  id: ID!
+  name: String!
+  firstName: String!
+  lastName: String!
+  email: String!
+  phone: String
+  status: DriverStatus!
+  appliedAt: String
+  dateOfBirth: String
+  nationalInsuranceNumber: String
+  rightToWorkCheckCode: String
+  inductionDate: String
+  interviewDate: String
+  idDocumentType: String
+  idDocumentNumber: String
+  idCheckCompleted: Boolean!
+  idCheckCompletedAt: String
+  driversLicenseNumber: String
+  driversLicenseExpiryDate: String
+  addressLine1: String
+  addressLine2: String
+  city: String
+  postcode: String
+  emergencyContactName: String
+  emergencyContactPhone: String
+  vehicleType: String
+  notes: String
+}
+
+type Query {
+  me: AdminUser
+  driver(id: ID!): Driver
+  drivers(pageSize: Int, pageToken: String): DriversConnection!
+  driversByFilters(
+    filters: DriverFiltersInput
+    pageSize: Int
+    pageToken: String
+  ): DriversConnection!
+  stats(filters: StatsFiltersInput): DriverStats!
+}
+
+type Mutation {
+  login(email: String!, password: String!): AuthSession
+  logout: Boolean!
+  updateDriver(input: UpdateDriverInput!, actor: String): Driver
+}
+
+type DriversConnection {
+  drivers: [Driver!]!
+  nextPageToken: String
+}
+
+type DriverStatusCount {
+  status: DriverStatus!
+  count: Int!
+}
+
+type DriverStats {
+  byStatus: [DriverStatusCount!]!
+  total: Int!
+}

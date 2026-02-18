@@ -1,0 +1,26 @@
+{
+  "name": "driver-onboarding",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "yarn workspaces run build",
+    "build:proto": "yarn workspace @driver-onboarding/proto run codegen",
+    "codegen": "yarn workspace @driver-onboarding/proto run codegen && yarn workspace @driver-onboarding/gql run codegen && yarn workspace @driver-onboarding/frontend run codegen",
+    "codegen:proto": "yarn workspace @driver-onboarding/proto run codegen",
+    "codegen:gql": "yarn workspace @driver-onboarding/gql run codegen",
+    "codegen:frontend": "yarn workspace @driver-onboarding/frontend run codegen",
+    "dev": "yarn workspaces run dev",
+    "dev:frontend": "yarn workspace @driver-onboarding/frontend run dev",
+    "dev:gql": "yarn workspace @driver-onboarding/gql run dev",
+    "dev:services": "yarn workspace @driver-onboarding/services run dev"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@driver-onboarding/proto",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.ts",
+      "default": "./index.ts"
+    }
+  },
+  "scripts": {
+    "codegen": "buf generate",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist generated",
+    "dev": "echo 'No dev server for proto'"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "1.49.0",
+    "@bufbuild/protoc-gen-es": "2.6.0",
+    "@bufbuild/protobuf": "2.6.0",
+    "typescript": "~5.7.2"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.6.0"
+  },
+  "files": ["dist", "generated"]
+}

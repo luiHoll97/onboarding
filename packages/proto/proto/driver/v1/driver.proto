@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package driver.v1;
+
+message Driver {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  DriverStatus status = 5;
+  string applied_at = 6;  // RFC3339
+  string first_name = 7;
+  string last_name = 8;
+  string date_of_birth = 9; // YYYY-MM-DD
+  string national_insurance_number = 10;
+  string right_to_work_check_code = 11;
+  string induction_date = 12; // RFC3339
+  string interview_date = 13; // RFC3339
+  string id_document_type = 14;
+  string id_document_number = 15;
+  bool id_check_completed = 16;
+  string id_check_completed_at = 17; // RFC3339
+  string drivers_license_number = 18;
+  string drivers_license_expiry_date = 19; // YYYY-MM-DD
+  string address_line_1 = 20;
+  string address_line_2 = 21;
+  string city = 22;
+  string postcode = 23;
+  string emergency_contact_name = 24;
+  string emergency_contact_phone = 25;
+  string vehicle_type = 26;
+  string notes = 27;
+  repeated AuditEvent audit_trail = 28;
+}
+
+enum DriverStatus {
+  DRIVER_STATUS_UNSPECIFIED = 0;
+  DRIVER_STATUS_PENDING = 1;
+  DRIVER_STATUS_APPROVED = 2;
+  DRIVER_STATUS_REJECTED = 3;
+}
+
+message GetDriverRequest {
+  string id = 1;
+}
+
+message GetDriverResponse {
+  Driver driver = 1;
+}
+
+message ListDriversRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListDriversResponse {
+  repeated Driver drivers = 1;
+  string next_page_token = 2;
+}
+
+message GetDriversByFiltersRequest {
+  optional DriverStatus status_filter = 1;
+  string search = 2;  // name or email contains
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message GetDriversByFiltersResponse {
+  repeated Driver drivers = 1;
+  string next_page_token = 2;
+}
+
+message BatchGetDriversRequest {
+  repeated string ids = 1;
+}
+
+message BatchGetDriversResponse {
+  repeated Driver drivers = 1;
+}
+
+message GetDriverStatsRequest {
+  optional DriverStatus status_filter = 1;
+  string search = 2;
+}
+
+message GetDriverStatsResponse {
+  map<string, int32> by_status = 1;  // e.g. "PENDING" -> count
+  int32 total = 2;
+}
+
+message UpdateDriverRequest {
+  Driver driver = 1;
+  string actor = 2;
+}
+
+message UpdateDriverResponse {
+  Driver driver = 1;
+}
+
+enum AuditAction {
+  AUDIT_ACTION_UNSPECIFIED = 0;
+  AUDIT_ACTION_CREATED = 1;
+  AUDIT_ACTION_UPDATED = 2;
+  AUDIT_ACTION_STATUS_CHANGED = 3;
+}
+
+message AuditEvent {
+  string id = 1;
+  string actor = 2;
+  AuditAction action = 3;
+  string timestamp = 4; // RFC3339
+  string field = 5;
+  string old_value = 6;
+  string new_value = 7;
+  string note = 8;
+}
