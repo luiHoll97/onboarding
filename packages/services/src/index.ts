@@ -395,8 +395,10 @@ function parseTypeformResponse(payload: unknown): {
 
   return {
     driverId:
+      parseString(fields.driverId, "") ||
       parseString(fields.monday_id, "") ||
-      parseString(fields.driver_id, ""),
+      parseString(fields.driver_id, "") ||
+      parseString(objectField(hidden, "driverId"), ""),
     email:
       parseString(fields.email, "") ||
       parseString(objectField(formResponse, "hidden_email"), ""),
@@ -566,7 +568,7 @@ async function processTypeformEvent(payload: unknown, eventId: string): Promise<
   }
   next.notes = appendWebhookNote(next.notes, eventId, parsed.submittedAt);
 
-  const updated = await db.updateDriver(next, "typeform-webhook");
+  const updated = await db.updateDriver(next, "typeform response");
   if (!updated) {
     throw new Error("Driver update failed");
   }
