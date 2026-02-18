@@ -106,8 +106,8 @@ export function Stats() {
     variables: { filters },
   });
 
-  if (loading) return <div className="loading">Loading stats...</div>;
-  if (error) return <div className="error">Error: {error.message}</div>;
+  if (loading) return <div className="py-8 text-center text-slate-500">Loading stats...</div>;
+  if (error) return <div className="py-8 text-center text-red-700">Error: {error.message}</div>;
 
   const stats = data?.stats ?? { byStatus: [], total: 0 };
   const byStatus = stats.byStatus;
@@ -116,12 +116,12 @@ export function Stats() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>Stats</h1>
-        <p>Applications by status with filterable chart inputs.</p>
+      <div className="mb-6">
+        <h1 className="mb-1 text-2xl font-semibold text-slate-900">Stats</h1>
+        <p className="text-sm text-slate-500">Applications by status with filterable chart inputs.</p>
       </div>
 
-      <div className="filters">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <select
           value={statusFilter}
           onChange={(event) => {
@@ -131,6 +131,7 @@ export function Stats() {
             }
           }}
           aria-label="Filter chart by status"
+          className="min-w-44 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
         >
           <option value="ALL">All statuses</option>
           <option value="PENDING">Pending</option>
@@ -143,11 +144,12 @@ export function Stats() {
           value={search}
           onChange={(event) => setSearch(event.currentTarget.value)}
           aria-label="Search scope"
+          className="min-w-60 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
         />
       </div>
 
-      <div className="stats-layout">
-        <div className="pie-card">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <svg viewBox="0 0 200 200" role="img" aria-label="Pie chart of applications by status">
             {segments.length === 0 ? (
               <circle cx="100" cy="100" r="90" fill="#e5e7eb" />
@@ -163,20 +165,20 @@ export function Stats() {
               ))
             )}
             <circle cx="100" cy="100" r="44" fill="#ffffff" />
-            <text x="100" y="96" textAnchor="middle" className="pie-total-number">
+            <text x="100" y="96" textAnchor="middle" className="fill-slate-900 text-[1.1rem] font-bold">
               {total}
             </text>
-            <text x="100" y="113" textAnchor="middle" className="pie-total-label">
+            <text x="100" y="113" textAnchor="middle" className="fill-slate-500 text-xs">
               Total
             </text>
           </svg>
 
-          <ul className="pie-legend">
+          <ul className="mt-3 grid gap-2">
             {byStatus.map((item) => {
               const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : "0.0";
               return (
-                <li key={item.status}>
-                  <span className="dot" style={{ backgroundColor: colors[item.status] }} />
+                <li key={item.status} className="grid grid-cols-[12px_1fr_auto_auto] items-center gap-2 text-sm text-slate-700">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[item.status] }} />
                   <span>{labels[item.status]}</span>
                   <strong>{item.count}</strong>
                   <span>{percentage}%</span>
@@ -186,15 +188,15 @@ export function Stats() {
           </ul>
         </div>
 
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="value">{total}</div>
-            <div className="label">Total applications</div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-3xl font-bold text-slate-900">{total}</div>
+            <div className="mt-1 text-sm text-slate-500">Total applications</div>
           </div>
           {byStatus.map((item) => (
-            <div key={item.status} className="stat-card">
-              <div className="value">{item.count}</div>
-              <div className="label">{labels[item.status]}</div>
+            <div key={item.status} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-3xl font-bold text-slate-900">{item.count}</div>
+              <div className="mt-1 text-sm text-slate-500">{labels[item.status]}</div>
             </div>
           ))}
         </div>

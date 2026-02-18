@@ -6,11 +6,13 @@ import { DriversConnection } from "./DriversConnection.js";
 import { DriverStats } from "./DriverStats.js";
 import { DriverStatusCount } from "./DriverStatusCount.js";
 import { AuditEvent } from "./AuditEvent.js";
+import { AdminUser } from "./AdminUser.js";
 
 export function createResolvers(): Resolvers {
   return {
     Query,
     Mutation,
+    AdminUser,
     Driver: driver,
     DriversConnection,
     DriverStats,

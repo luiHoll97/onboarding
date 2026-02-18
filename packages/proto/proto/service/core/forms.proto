@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package service.core.forms;
+
+message CreatePrefilledFormLinkRequest {
+  string provider = 1;
+  string form_id = 2;
+  map<string, string> prefill_fields = 3;
+}
+
+message CreatePrefilledFormLinkResponse {
+  string prefilled_url = 1;
+  string qr_code_url = 2;
+}
+
+message SendFormInvitationRequest {
+  string provider = 1;
+  string form_id = 2;
+  map<string, string> prefill_fields = 3;
+  string recipient_email = 4;
+  string recipient_first_name = 5;
+  string recipient_last_name = 6;
+  string sender_email = 7;
+  string subject = 8;
+}
+
+message SendFormInvitationResponse {
+  bool sent = 1;
+  string prefilled_url = 2;
+  string qr_code_url = 3;
+  string message_id = 4;
+  string provider = 5;
+}

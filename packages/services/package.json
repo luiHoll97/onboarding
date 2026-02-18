@@ -6,12 +6,18 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "db:pg:up": "docker compose -f docker-compose.postgres.yml up -d",
+    "db:pg:down": "docker compose -f docker-compose.postgres.yml down",
+    "db:pg:logs": "docker compose -f docker-compose.postgres.yml logs -f postgres",
+    "db:pg:migrate": "bash scripts/pg-migrate.sh"
   },
   "dependencies": {
     "@driver-onboarding/proto": "*",
+    "@types/pg": "8.11.6",
+    "cors": "2.8.5",
     "express": "4.21.2",
-    "cors": "2.8.5"
+    "pg": "8.11.5"
   },
   "devDependencies": {
     "@types/cors": "2.8.17",

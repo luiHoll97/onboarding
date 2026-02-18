@@ -1,6 +1,6 @@
-import { DriverStatus, type Driver } from "@driver-onboarding/proto";
+import { AdminPermission, DriverStatus, type Driver } from "@driver-onboarding/proto";
 import { DriverStatus as GqlDriverStatus, type Resolvers } from "../../generated/graphql.js";
-import { requireAdmin } from "../auth.js";
+import { requirePermission } from "../auth.js";
 
 function mapStatus(status: GqlDriverStatus): DriverStatus {
   if (status === GqlDriverStatus.Approved) return DriverStatus.APPROVED;
@@ -11,7 +11,7 @@ function mapStatus(status: GqlDriverStatus): DriverStatus {
 export const UpdateDriverMutation: NonNullable<
   Resolvers["Mutation"]
 >["updateDriver"] = async (_parent, { input, actor }, ctx) => {
-  requireAdmin(ctx);
+  requirePermission(ctx, AdminPermission.EDIT_DRIVERS);
   const current = await ctx.clients.driverService.getDriver({ id: input.id });
   if (!current.driver) {
     return null;

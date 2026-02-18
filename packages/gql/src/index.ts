@@ -11,6 +11,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const typeDefs = readFileSync(join(__dirname, "schema.graphql"), "utf-8");
 const servicesBaseUrl = process.env.SERVICES_URL ?? "http://localhost:4001";
 
+console.log("servicesBaseUrl", servicesBaseUrl);
+
 const schema = createSchema<Context>({
   typeDefs,
   resolvers: createResolvers(),

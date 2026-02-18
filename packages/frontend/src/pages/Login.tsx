@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuthToken, getAuthToken, setAuthToken } from "../auth.ts";
-import logo from "../assets/logo.png";
+import logo from "../assets/logo2.png";
 
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
@@ -14,6 +14,9 @@ const LOGIN_MUTATION = gql`
         id
         email
         name
+        role
+        permissions
+        createdAt
       }
     }
   }
@@ -25,6 +28,8 @@ const ME_QUERY = gql`
       id
       email
       name
+      role
+      permissions
     }
   }
 `;
@@ -37,6 +42,9 @@ type LoginData = {
       id: string;
       email: string;
       name: string;
+      role: string;
+      permissions: string[];
+      createdAt: string;
     };
   } | null;
 };
@@ -46,6 +54,8 @@ type MeData = {
     id: string;
     email: string;
     name: string;
+    role: string;
+    permissions: string[];
   } | null;
 };
 
@@ -95,39 +105,48 @@ export function Login() {
   }
 
   return (
-    <div className="login-shell">
-      <form className="login-card" onSubmit={onSubmit}>
-        <img src={logo} alt="Driver Onboarding" className="login-logo" />
-        <h1>Admin Login</h1>
-        <p>Sign in to access onboarding dashboard.</p>
+    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-100 to-indigo-100 p-4">
+      <form
+        className="grid w-full max-w-md justify-items-center gap-4 rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm"
+        onSubmit={onSubmit}
+      >
+        <img src={logo} alt="Driver Onboarding" className="h-22 w-22 object-contain" />
+        <h1 className="text-2xl font-semibold text-slate-900">Admin Login</h1>
+        <p className="text-sm text-slate-500">Sign in to access onboarding dashboard.</p>
 
-        <label>
+        <label className="grid w-full gap-1 text-center text-sm text-slate-500">
           Email
           <input
             type="email"
             value={email}
             onChange={(event) => setEmail(event.currentTarget.value)}
             required
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-500 focus:ring-2"
           />
         </label>
 
-        <label>
+        <label className="grid w-full gap-1 text-center text-sm text-slate-500">
           Password
           <input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
             required
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-blue-500 focus:ring-2"
           />
         </label>
 
-        <button className="btn" type="submit" disabled={loginState.loading}>
+        <button
+          className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          type="submit"
+          disabled={loginState.loading}
+        >
           {loginState.loading ? "Signing in..." : "Sign In"}
         </button>
 
-        {formError ? <p className="error-inline">{formError}</p> : null}
+        {formError ? <p className="text-sm text-red-700">{formError}</p> : null}
         {loginState.error ? (
-          <p className="error-inline">{loginState.error.message}</p>
+          <p className="text-sm text-red-700">{loginState.error.message}</p>
         ) : null}
       </form>
     </div>

@@ -5,9 +5,15 @@ export const driverRpcMethods = {
   batchGetDrivers: "driver.v1.DriverService.BatchGetDrivers",
   getDriverStats: "driver.v1.DriverService.GetDriverStats",
   updateDriver: "driver.v1.DriverService.UpdateDriver",
+  sendAdditionalDetailsForm: "driver.v1.DriverService.SendAdditionalDetailsForm",
   login: "svc.core.auth.AuthService.Login",
   validateSession: "svc.core.auth.AuthService.ValidateSession",
   logout: "svc.core.auth.AuthService.Logout",
+  listAdmins: "svc.core.auth.AuthService.ListAdmins",
+  getAdmin: "svc.core.auth.AuthService.GetAdmin",
+  createAdmin: "svc.core.auth.AuthService.CreateAdmin",
+  updateAdminAccess: "svc.core.auth.AuthService.UpdateAdminAccess",
+  deleteAdmin: "svc.core.auth.AuthService.DeleteAdmin",
 };
 
 export async function callServicesRpc(

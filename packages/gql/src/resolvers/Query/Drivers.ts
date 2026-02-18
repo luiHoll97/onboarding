@@ -1,12 +1,13 @@
+import { AdminPermission } from "@driver-onboarding/proto";
 import type { Resolvers } from "../../generated/graphql.js";
-import { requireAdmin } from "../auth.js";
+import { requirePermission } from "../auth.js";
 
 export const DriversQuery: NonNullable<Resolvers["Query"]>["drivers"] = async (
   _parent,
   { pageSize, pageToken },
   ctx
 ) => {
-  requireAdmin(ctx);
+  requirePermission(ctx, AdminPermission.VIEW_DRIVERS);
   const data = await ctx.clients.driverService.listDrivers({
     pageSize: pageSize ?? 10,
     pageToken: pageToken ?? "",

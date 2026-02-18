@@ -97,6 +97,18 @@ message UpdateDriverResponse {
   Driver driver = 1;
 }
 
+message SendAdditionalDetailsFormRequest {
+  string driver_id = 1;
+  string monday_id = 2;
+}
+
+message SendAdditionalDetailsFormResponse {
+  bool sent = 1;
+  string prefilled_url = 2;
+  string qr_code_url = 3;
+  string message_id = 4;
+}
+
 enum AuditAction {
   AUDIT_ACTION_UNSPECIFIED = 0;
   AUDIT_ACTION_CREATED = 1;

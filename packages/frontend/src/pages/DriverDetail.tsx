@@ -59,6 +59,27 @@ const UPDATE_DRIVER_MUTATION = gql`
   }
 `;
 
+const SEND_ADDITIONAL_DETAILS_FORM_MUTATION = gql`
+  mutation SendAdditionalDetailsForm($driverId: ID!, $mondayId: String) {
+    sendAdditionalDetailsForm(driverId: $driverId, mondayId: $mondayId) {
+      sent
+      prefilledUrl
+      qrCodeUrl
+      messageId
+      provider
+    }
+  }
+`;
+
+const ME_PERMISSIONS_QUERY = gql`
+  query MePermissions {
+    me {
+      id
+      permissions
+    }
+  }
+`;
+
 type DriverStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 type AuditEvent = {
@@ -105,6 +126,22 @@ type Driver = {
 
 type DriverData = { driver: Driver | null };
 type UpdateData = { updateDriver: Driver | null };
+type SendAdditionalDetailsData = {
+  sendAdditionalDetailsForm: {
+    sent: boolean;
+    prefilledUrl: string;
+    qrCodeUrl: string;
+    messageId: string;
+    provider: string;
+  };
+};
+
+type MePermissionsData = {
+  me: {
+    id: string;
+    permissions: string[];
+  } | null;
+};
 
 type DriverForm = {
   id: string;
@@ -234,13 +271,17 @@ function emptyForm(id: string): DriverForm {
 }
 
 function StatusBadge({ status }: { status: DriverStatus }) {
-  const className =
+  const classes =
     status === "APPROVED"
-      ? "status-approved"
+      ? "bg-emerald-100 text-emerald-800"
       : status === "REJECTED"
-        ? "status-rejected"
-        : "status-pending";
-  return <span className={`status-badge ${className}`}>{status}</span>;
+        ? "bg-rose-100 text-rose-800"
+        : "bg-amber-100 text-amber-800";
+  return <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${classes}`}>{status}</span>;
+}
+
+function inputClassName() {
+  return "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-blue-500 focus:ring-2";
 }
 
 export function DriverDetail() {
@@ -248,13 +289,20 @@ export function DriverDetail() {
   const navigate = useNavigate();
   const [form, setForm] = useState<DriverForm>(emptyForm(id ?? ""));
   const [saveMessage, setSaveMessage] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
 
   const { data, loading, error } = useQuery<DriverData>(DRIVER_QUERY, {
     variables: { id: id ?? "" },
     skip: !id,
   });
+  const { data: meData } = useQuery<MePermissionsData>(ME_PERMISSIONS_QUERY, {
+    fetchPolicy: "cache-first",
+  });
 
   const [updateDriver, updateState] = useMutation<UpdateData>(UPDATE_DRIVER_MUTATION);
+  const [sendAdditionalDetailsForm, sendState] =
+    useMutation<SendAdditionalDetailsData>(SEND_ADDITIONAL_DETAILS_FORM_MUTATION);
+  const canEditDrivers = meData?.me?.permissions.includes("EDIT_DRIVERS") ?? false;
 
   useEffect(() => {
     if (data?.driver) {
@@ -263,24 +311,23 @@ export function DriverDetail() {
   }, [data]);
 
   if (!id) {
-    return <div className="error">Missing driver ID.</div>;
+    return <div className="py-8 text-center text-red-700">Missing driver ID.</div>;
   }
 
-  if (loading) return <div className="loading">Loading driver...</div>;
-  if (error) return <div className="error">Error: {error.message}</div>;
+  if (loading) return <div className="py-8 text-center text-slate-500">Loading driver...</div>;
+  if (error) return <div className="py-8 text-center text-red-700">Error: {error.message}</div>;
   if (!data?.driver) {
     return (
-      <>
-        <div className="error">Driver not found.</div>
+      <div className="space-y-3">
+        <div className="py-6 text-center text-red-700">Driver not found.</div>
         <button
           type="button"
-          className="btn btn-secondary"
-          style={{ marginTop: "1rem" }}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           onClick={() => navigate("/")}
         >
           Back to Dashboard
         </button>
-      </>
+      </div>
     );
   }
 
@@ -293,10 +340,7 @@ export function DriverDetail() {
           ? event.currentTarget.checked
           : event.currentTarget.value;
       setSaveMessage("");
-      setForm((previous) => ({
-        ...previous,
-        [field]: value,
-      }));
+      setForm((previous) => ({ ...previous, [field]: value }));
     };
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -345,185 +389,138 @@ export function DriverDetail() {
     }
   }
 
-  const auditTrail = [...data.driver.auditTrail].sort((a, b) => {
-    return b.timestamp.localeCompare(a.timestamp);
-  });
+  async function onSendAdditionalDetailsForm() {
+    if (!id) {
+      return;
+    }
+    setSendMessage("");
+    const result = await sendAdditionalDetailsForm({
+      variables: {
+        driverId: id,
+        mondayId: id,
+      },
+    });
+
+    const payload = result.data?.sendAdditionalDetailsForm;
+    if (payload?.sent) {
+      setSendMessage(`Email sent. Form link: ${payload.prefilledUrl}`);
+      return;
+    }
+    setSendMessage("Unable to send additional details form email.");
+  }
+
+  const auditTrail = [...data.driver.auditTrail].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   return (
     <>
-      <div className="page-header" style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          className="btn btn-secondary"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           onClick={() => navigate("/")}
           aria-label="Back to dashboard"
         >
           Back
         </button>
         <div>
-          <h1>{data.driver.name}</h1>
-          <p>
+          <h1 className="mb-1 text-2xl font-semibold text-slate-900">{data.driver.name}</h1>
+          <p className="text-sm text-slate-500">
             Driver profile and compliance details. Current status: <StatusBadge status={form.status} />
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onSendAdditionalDetailsForm}
+          disabled={sendState.loading}
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+        >
+          {sendState.loading ? "Sending..." : "Send Additional Details Form"}
+        </button>
       </div>
+      {sendState.error ? (
+        <p className="mb-4 text-sm text-red-700">{sendState.error.message}</p>
+      ) : null}
+      {sendMessage ? (
+        <p className="mb-4 break-all text-sm text-emerald-700">{sendMessage}</p>
+      ) : null}
+      {!canEditDrivers ? (
+        <p className="mb-4 text-sm text-amber-700">
+          You have read-only access. Driver edits require the EDIT_DRIVERS permission.
+        </p>
+      ) : null}
 
-      <form className="driver-form" onSubmit={onSubmit}>
-        <div className="form-grid">
-          <label>
-            Full name
-            <input value={form.name} onChange={onInputChange("name")} required />
-          </label>
-          <label>
-            First name
-            <input value={form.firstName} onChange={onInputChange("firstName")} required />
-          </label>
-          <label>
-            Last name
-            <input value={form.lastName} onChange={onInputChange("lastName")} required />
-          </label>
-          <label>
-            Email
-            <input type="email" value={form.email} onChange={onInputChange("email")} required />
-          </label>
-          <label>
-            Phone
-            <input value={form.phone} onChange={onInputChange("phone")} />
-          </label>
-          <label>
-            Status
-            <select value={form.status} onChange={onInputChange("status")}>
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-          </label>
-          <label>
-            Applied at
-            <input type="datetime-local" value={form.appliedAt} onChange={onInputChange("appliedAt")} />
-          </label>
-          <label>
-            Date of birth
-            <input type="date" value={form.dateOfBirth} onChange={onInputChange("dateOfBirth")} />
-          </label>
-          <label>
-            National Insurance number
-            <input value={form.nationalInsuranceNumber} onChange={onInputChange("nationalInsuranceNumber")} />
-          </label>
-          <label>
-            Right to work check code
-            <input value={form.rightToWorkCheckCode} onChange={onInputChange("rightToWorkCheckCode")} />
-          </label>
-          <label>
-            Interview date
-            <input type="datetime-local" value={form.interviewDate} onChange={onInputChange("interviewDate")} />
-          </label>
-          <label>
-            Induction date
-            <input type="datetime-local" value={form.inductionDate} onChange={onInputChange("inductionDate")} />
-          </label>
-          <label>
-            ID document type
-            <input value={form.idDocumentType} onChange={onInputChange("idDocumentType")} />
-          </label>
-          <label>
-            ID document number
-            <input value={form.idDocumentNumber} onChange={onInputChange("idDocumentNumber")} />
-          </label>
-          <label>
-            Driver licence number
-            <input value={form.driversLicenseNumber} onChange={onInputChange("driversLicenseNumber")} />
-          </label>
-          <label>
-            Driver licence expiry
-            <input
-              type="date"
-              value={form.driversLicenseExpiryDate}
-              onChange={onInputChange("driversLicenseExpiryDate")}
-            />
-          </label>
-          <label>
-            Address line 1
-            <input value={form.addressLine1} onChange={onInputChange("addressLine1")} />
-          </label>
-          <label>
-            Address line 2
-            <input value={form.addressLine2} onChange={onInputChange("addressLine2")} />
-          </label>
-          <label>
-            City
-            <input value={form.city} onChange={onInputChange("city")} />
-          </label>
-          <label>
-            Postcode
-            <input value={form.postcode} onChange={onInputChange("postcode")} />
-          </label>
-          <label>
-            Emergency contact
-            <input value={form.emergencyContactName} onChange={onInputChange("emergencyContactName")} />
-          </label>
-          <label>
-            Emergency phone
-            <input value={form.emergencyContactPhone} onChange={onInputChange("emergencyContactPhone")} />
-          </label>
-          <label>
-            Vehicle type
-            <input value={form.vehicleType} onChange={onInputChange("vehicleType")} />
-          </label>
-          <label>
-            ID check completed at
-            <input
-              type="datetime-local"
-              value={form.idCheckCompletedAt}
-              onChange={onInputChange("idCheckCompletedAt")}
-            />
-          </label>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={form.idCheckCompleted}
-              onChange={onInputChange("idCheckCompleted")}
-            />
-            ID check completed
-          </label>
+      <form className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" onSubmit={onSubmit}>
+        <fieldset disabled={!canEditDrivers}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <label className="grid gap-1 text-sm text-slate-500">Full name<input className={inputClassName()} value={form.name} onChange={onInputChange("name")} required /></label>
+          <label className="grid gap-1 text-sm text-slate-500">First name<input className={inputClassName()} value={form.firstName} onChange={onInputChange("firstName")} required /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Last name<input className={inputClassName()} value={form.lastName} onChange={onInputChange("lastName")} required /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Email<input className={inputClassName()} type="email" value={form.email} onChange={onInputChange("email")} required /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Phone<input className={inputClassName()} value={form.phone} onChange={onInputChange("phone")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Status<select className={inputClassName()} value={form.status} onChange={onInputChange("status")}><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label>
+          <label className="grid gap-1 text-sm text-slate-500">Applied at<input className={inputClassName()} type="datetime-local" value={form.appliedAt} onChange={onInputChange("appliedAt")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Date of birth<input className={inputClassName()} type="date" value={form.dateOfBirth} onChange={onInputChange("dateOfBirth")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">National Insurance number<input className={inputClassName()} value={form.nationalInsuranceNumber} onChange={onInputChange("nationalInsuranceNumber")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Right to work check code<input className={inputClassName()} value={form.rightToWorkCheckCode} onChange={onInputChange("rightToWorkCheckCode")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Interview date<input className={inputClassName()} type="datetime-local" value={form.interviewDate} onChange={onInputChange("interviewDate")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Induction date<input className={inputClassName()} type="datetime-local" value={form.inductionDate} onChange={onInputChange("inductionDate")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">ID document type<input className={inputClassName()} value={form.idDocumentType} onChange={onInputChange("idDocumentType")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">ID document number<input className={inputClassName()} value={form.idDocumentNumber} onChange={onInputChange("idDocumentNumber")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Driver licence number<input className={inputClassName()} value={form.driversLicenseNumber} onChange={onInputChange("driversLicenseNumber")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Driver licence expiry<input className={inputClassName()} type="date" value={form.driversLicenseExpiryDate} onChange={onInputChange("driversLicenseExpiryDate")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Address line 1<input className={inputClassName()} value={form.addressLine1} onChange={onInputChange("addressLine1")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Address line 2<input className={inputClassName()} value={form.addressLine2} onChange={onInputChange("addressLine2")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">City<input className={inputClassName()} value={form.city} onChange={onInputChange("city")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Postcode<input className={inputClassName()} value={form.postcode} onChange={onInputChange("postcode")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Emergency contact<input className={inputClassName()} value={form.emergencyContactName} onChange={onInputChange("emergencyContactName")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Emergency phone<input className={inputClassName()} value={form.emergencyContactPhone} onChange={onInputChange("emergencyContactPhone")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">Vehicle type<input className={inputClassName()} value={form.vehicleType} onChange={onInputChange("vehicleType")} /></label>
+          <label className="grid gap-1 text-sm text-slate-500">ID check completed at<input className={inputClassName()} type="datetime-local" value={form.idCheckCompletedAt} onChange={onInputChange("idCheckCompletedAt")} /></label>
+          <label className="flex items-center gap-2 self-end text-sm text-slate-600"><input className="h-4 w-4" type="checkbox" checked={form.idCheckCompleted} onChange={onInputChange("idCheckCompleted")} />ID check completed</label>
         </div>
 
-        <label>
+        <label className="mt-4 grid gap-1 text-sm text-slate-500">
           Notes
-          <textarea value={form.notes} onChange={onInputChange("notes")} rows={4} />
+          <textarea
+            value={form.notes}
+            onChange={onInputChange("notes")}
+            rows={4}
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-blue-500 focus:ring-2"
+          />
         </label>
 
-        <div className="form-actions">
-          <button type="submit" className="btn" disabled={updateState.loading}>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={updateState.loading}>
             {updateState.loading ? "Saving..." : "Save Changes"}
           </button>
-          {updateState.error ? <span className="error-inline">{updateState.error.message}</span> : null}
-          {saveMessage ? <span className="saved-inline">{saveMessage}</span> : null}
+          {updateState.error ? <span className="text-sm text-red-700">{updateState.error.message}</span> : null}
+          {saveMessage ? <span className="text-sm text-emerald-700">{saveMessage}</span> : null}
         </div>
+        </fieldset>
       </form>
 
-      <section className="audit-trail">
-        <h2>Audit Trail</h2>
+      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Audit Trail</h2>
         {auditTrail.length === 0 ? (
-          <p className="empty">No audit events recorded.</p>
+          <p className="text-sm text-slate-500">No audit events recorded.</p>
         ) : (
-          <ul>
+          <ul className="grid gap-3">
             {auditTrail.map((event) => (
-              <li key={event.id}>
-                <div className="audit-top">
-                  <strong>{event.action}</strong>
-                  <span>{formatDateTime(event.timestamp)}</span>
+              <li key={event.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <strong className="text-slate-900">{event.action}</strong>
+                  <span className="text-slate-500">{formatDateTime(event.timestamp)}</span>
                 </div>
-                <div className="audit-meta">
+                <div className="mb-2 flex flex-wrap gap-4 text-xs text-slate-500">
                   <span>Actor: {event.actor}</span>
                   <span>Field: {event.field}</span>
                 </div>
-                <div className="audit-change">
-                  <code>{event.oldValue || "(empty)"}</code>
-                  <span>→</span>
-                  <code>{event.newValue || "(empty)"}</code>
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                  <code className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-700">{event.oldValue || "(empty)"}</code>
+                  <span className="text-slate-500">→</span>
+                  <code className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-700">{event.newValue || "(empty)"}</code>
                 </div>
-                <p>{event.note}</p>
+                <p className="text-sm text-slate-700">{event.note}</p>
               </li>
             ))}
           </ul>

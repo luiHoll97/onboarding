@@ -13,6 +13,8 @@ import {
   type GetDriverStatsResponse,
   type ListDriversRequest,
   type ListDriversResponse,
+  type SendAdditionalDetailsFormRequest,
+  type SendAdditionalDetailsFormResponse,
   type UpdateDriverRequest,
   type UpdateDriverResponse,
 } from "@driver-onboarding/proto";
@@ -192,6 +194,17 @@ function parseUpdateDriverResponse(value: unknown): UpdateDriverResponse {
   };
 }
 
+function parseSendAdditionalDetailsFormResponse(
+  value: unknown
+): SendAdditionalDetailsFormResponse {
+  return {
+    sent: parseBoolean(objectField(value, "sent"), false),
+    prefilledUrl: parseString(objectField(value, "prefilledUrl"), ""),
+    qrCodeUrl: parseString(objectField(value, "qrCodeUrl"), ""),
+    messageId: parseString(objectField(value, "messageId"), ""),
+  };
+}
+
 export class DriverServiceClient {
   constructor(private readonly baseUrl: string) {}
 
@@ -253,5 +266,16 @@ export class DriverServiceClient {
       params
     );
     return parseUpdateDriverResponse(result);
+  }
+
+  async sendAdditionalDetailsForm(
+    params: SendAdditionalDetailsFormRequest
+  ): Promise<SendAdditionalDetailsFormResponse> {
+    const result = await callServicesRpc(
+      this.baseUrl,
+      driverRpcMethods.sendAdditionalDetailsForm,
+      params
+    );
+    return parseSendAdditionalDetailsFormResponse(result);
   }
 }

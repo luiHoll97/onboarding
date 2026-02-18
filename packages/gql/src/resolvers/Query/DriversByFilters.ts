@@ -1,11 +1,11 @@
-import { DriverStatus } from "@driver-onboarding/proto";
+import { AdminPermission, DriverStatus } from "@driver-onboarding/proto";
 import { DriverStatus as GqlDriverStatus, type Resolvers } from "../../generated/graphql.js";
-import { requireAdmin } from "../auth.js";
+import { requirePermission } from "../auth.js";
 
 export const DriversByFiltersQuery: NonNullable<
   Resolvers["Query"]
 >["driversByFilters"] = async (_parent, { filters, pageSize, pageToken }, ctx) => {
-  requireAdmin(ctx);
+  requirePermission(ctx, AdminPermission.VIEW_DRIVERS);
   let statusFilter: DriverStatus | undefined;
   if (filters?.status != null) {
     statusFilter =

@@ -2,10 +2,30 @@ syntax = "proto3";
 
 package svc.core.auth;
 
+enum AdminRole {
+  ADMIN_ROLE_UNSPECIFIED = 0;
+  ADMIN_ROLE_SUPER_ADMIN = 1;
+  ADMIN_ROLE_OPERATIONS = 2;
+  ADMIN_ROLE_RECRUITER = 3;
+  ADMIN_ROLE_VIEWER = 4;
+}
+
+enum AdminPermission {
+  ADMIN_PERMISSION_UNSPECIFIED = 0;
+  ADMIN_PERMISSION_MANAGE_ADMINS = 1;
+  ADMIN_PERMISSION_VIEW_DRIVERS = 2;
+  ADMIN_PERMISSION_EDIT_DRIVERS = 3;
+  ADMIN_PERMISSION_VIEW_STATS = 4;
+  ADMIN_PERMISSION_SEND_FORMS = 5;
+}
+
 message AdminUser {
   string id = 1;
   string email = 2;
   string name = 3;
+  AdminRole role = 4;
+  repeated AdminPermission permissions = 5;
+  string created_at = 6; // RFC3339
 }
 
 message LoginRequest {
@@ -34,5 +54,49 @@ message LogoutRequest {
 }
 
 message LogoutResponse {
+  bool success = 1;
+}
+
+message ListAdminsRequest {}
+
+message ListAdminsResponse {
+  repeated AdminUser admins = 1;
+}
+
+message GetAdminRequest {
+  string id = 1;
+}
+
+message GetAdminResponse {
+  AdminUser admin = 1;
+}
+
+message CreateAdminRequest {
+  string email = 1;
+  string name = 2;
+  string password = 3;
+  AdminRole role = 4;
+  repeated AdminPermission permissions = 5;
+}
+
+message CreateAdminResponse {
+  AdminUser admin = 1;
+}
+
+message UpdateAdminAccessRequest {
+  string id = 1;
+  AdminRole role = 2;
+  repeated AdminPermission permissions = 3;
+}
+
+message UpdateAdminAccessResponse {
+  AdminUser admin = 1;
+}
+
+message DeleteAdminRequest {
+  string id = 1;
+}
+
+message DeleteAdminResponse {
   bool success = 1;
 }

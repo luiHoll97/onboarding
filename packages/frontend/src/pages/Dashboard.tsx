@@ -45,13 +45,18 @@ function formatDate(s: string | null | undefined) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const c =
+  const classes =
     status === "APPROVED"
-      ? "status-approved"
+      ? "bg-emerald-100 text-emerald-800"
       : status === "REJECTED"
-        ? "status-rejected"
-        : "status-pending";
-  return <span className={`status-badge ${c}`}>{status}</span>;
+        ? "bg-rose-100 text-rose-800"
+        : "bg-amber-100 text-amber-800";
+
+  return (
+    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${classes}`}>
+      {status}
+    </span>
+  );
 }
 
 export function Dashboard() {
@@ -70,23 +75,24 @@ export function Dashboard() {
     variables: { filters, pageSize: 50 },
   });
 
-  if (loading) return <div className="loading">Loading drivers…</div>;
-  if (error) return <div className="error">Error: {error.message}</div>;
+  if (loading) return <div className="py-8 text-center text-slate-500">Loading drivers…</div>;
+  if (error) return <div className="py-8 text-center text-red-700">Error: {error.message}</div>;
 
   const drivers = data?.driversByFilters?.drivers ?? [];
 
   return (
     <>
-      <div className="page-header">
-        <h1>Dashboard</h1>
-        <p>Drivers in application. Filter and open a row to view details.</p>
+      <div className="mb-6">
+        <h1 className="mb-1 text-2xl font-semibold text-slate-900">Dashboard</h1>
+        <p className="text-sm text-slate-500">Drivers in application. Filter and open a row to view details.</p>
       </div>
 
-      <div className="filters">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter by status"
+          className="min-w-44 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
         >
           <option value="">All statuses</option>
           <option value="PENDING">Pending</option>
@@ -99,18 +105,29 @@ export function Dashboard() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search drivers"
+          className="min-w-60 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
         />
       </div>
 
-      <div className="table-wrap">
-        <table>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <table className="w-full border-collapse">
           <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Status</th>
-              <th>Applied</th>
+            <tr className="bg-slate-50">
+              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Name
+              </th>
+              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Email
+              </th>
+              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Phone
+              </th>
+              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Status
+              </th>
+              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Applied
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -120,6 +137,7 @@ export function Dashboard() {
                 onClick={() => navigate(`/driver/${d.id}`)}
                 role="button"
                 tabIndex={0}
+                className="cursor-pointer transition hover:bg-slate-50"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
@@ -127,20 +145,21 @@ export function Dashboard() {
                   }
                 }}
               >
-                <td><strong>{d.name}</strong></td>
-                <td>{d.email}</td>
-                <td>{d.phone ?? "—"}</td>
-                <td><StatusBadge status={d.status} /></td>
-                <td>{formatDate(d.appliedAt)}</td>
+                <td className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">{d.name}</td>
+                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">{d.email}</td>
+                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">{d.phone ?? "—"}</td>
+                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">
+                  <StatusBadge status={d.status} />
+                </td>
+                <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">{formatDate(d.appliedAt)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
       {drivers.length === 0 && (
-        <p style={{ color: "var(--text-muted)", marginTop: "1rem" }}>
-          No drivers match the current filters.
-        </p>
+        <p className="mt-4 text-sm text-slate-500">No drivers match the current filters.</p>
       )}
     </>
   );

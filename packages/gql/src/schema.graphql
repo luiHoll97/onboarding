@@ -5,16 +5,42 @@ enum DriverStatus {
   REJECTED
 }
 
+enum AdminRole {
+  SUPER_ADMIN
+  OPERATIONS
+  RECRUITER
+  VIEWER
+}
+
+enum AdminPermission {
+  MANAGE_ADMINS
+  VIEW_DRIVERS
+  EDIT_DRIVERS
+  VIEW_STATS
+  SEND_FORMS
+}
+
 type AdminUser {
   id: ID!
   email: String!
   name: String!
+  role: AdminRole!
+  permissions: [AdminPermission!]!
+  createdAt: String!
 }
 
 type AuthSession {
   token: String!
   expiresAt: String!
   user: AdminUser!
+}
+
+type SentFormInvitation {
+  sent: Boolean!
+  prefilledUrl: String!
+  qrCodeUrl: String!
+  messageId: String!
+  provider: String!
 }
 
 enum AuditAction {
@@ -107,6 +133,8 @@ input UpdateDriverInput {
 
 type Query {
   me: AdminUser
+  admins: [AdminUser!]!
+  admin(id: ID!): AdminUser
   driver(id: ID!): Driver
   drivers(pageSize: Int, pageToken: String): DriversConnection!
   driversByFilters(
@@ -120,7 +148,25 @@ type Query {
 type Mutation {
   login(email: String!, password: String!): AuthSession
   logout: Boolean!
+  createAdmin(input: CreateAdminInput!): AdminUser
+  updateAdminAccess(input: UpdateAdminAccessInput!): AdminUser
+  deleteAdmin(id: ID!): Boolean!
   updateDriver(input: UpdateDriverInput!, actor: String): Driver
+  sendAdditionalDetailsForm(driverId: ID!, mondayId: String): SentFormInvitation!
+}
+
+input CreateAdminInput {
+  email: String!
+  name: String!
+  password: String!
+  role: AdminRole!
+  permissions: [AdminPermission!]
+}
+
+input UpdateAdminAccessInput {
+  id: ID!
+  role: AdminRole!
+  permissions: [AdminPermission!]
 }
 
 type DriversConnection {

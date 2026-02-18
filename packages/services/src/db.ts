@@ -5,6 +5,8 @@ import { DatabaseSync } from "node:sqlite";
 import { randomBytes, scryptSync } from "node:crypto";
 import {
   AuditAction,
+  AdminPermission,
+  AdminRole,
   DriverStatus,
   type AuditEvent,
   type Driver,
@@ -17,10 +19,19 @@ import {
 } from "@driver-onboarding/proto";
 import type {
   AdminUser,
+  CreateAdminRequest,
+  CreateAdminResponse,
+  DeleteAdminRequest,
+  DeleteAdminResponse,
+  GetAdminRequest,
+  GetAdminResponse,
+  ListAdminsResponse,
   LoginRequest,
   LoginResponse,
   LogoutRequest,
   LogoutResponse,
+  UpdateAdminAccessRequest,
+  UpdateAdminAccessResponse,
   ValidateSessionRequest,
   ValidateSessionResponse,
 } from "@driver-onboarding/proto";
@@ -28,6 +39,15 @@ import type {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, "../.data");
 const dbPath = join(dataDir, "driver_onboarding.sqlite");
+
+export interface WebhookEvent {
+  id: string;
+  provider: string;
+  eventType: string;
+  externalEventId: string;
+  payload: unknown;
+  attempts: number;
+}
 
 function objectField(source: unknown, key: string): unknown {
   if (typeof source !== "object" || source === null) {
@@ -91,6 +111,108 @@ function statusLabel(status: DriverStatus): string {
   if (status === DriverStatus.APPROVED) return "APPROVED";
   if (status === DriverStatus.REJECTED) return "REJECTED";
   return "PENDING";
+}
+
+function normalizePermission(permission: AdminPermission): AdminPermission {
+  if (permission === AdminPermission.MANAGE_ADMINS) return AdminPermission.MANAGE_ADMINS;
+  if (permission === AdminPermission.VIEW_DRIVERS) return AdminPermission.VIEW_DRIVERS;
+  if (permission === AdminPermission.EDIT_DRIVERS) return AdminPermission.EDIT_DRIVERS;
+  if (permission === AdminPermission.VIEW_STATS) return AdminPermission.VIEW_STATS;
+  if (permission === AdminPermission.SEND_FORMS) return AdminPermission.SEND_FORMS;
+  return AdminPermission.UNSPECIFIED;
+}
+
+function normalizeRole(role: AdminRole): AdminRole {
+  if (role === AdminRole.SUPER_ADMIN) return AdminRole.SUPER_ADMIN;
+  if (role === AdminRole.OPERATIONS) return AdminRole.OPERATIONS;
+  if (role === AdminRole.RECRUITER) return AdminRole.RECRUITER;
+  if (role === AdminRole.VIEWER) return AdminRole.VIEWER;
+  return AdminRole.UNSPECIFIED;
+}
+
+function defaultPermissionsForRole(role: AdminRole): AdminPermission[] {
+  if (role === AdminRole.SUPER_ADMIN) {
+    return [
+      AdminPermission.MANAGE_ADMINS,
+      AdminPermission.VIEW_DRIVERS,
+      AdminPermission.EDIT_DRIVERS,
+      AdminPermission.VIEW_STATS,
+      AdminPermission.SEND_FORMS,
+    ];
+  }
+  if (role === AdminRole.OPERATIONS) {
+    return [
+      AdminPermission.VIEW_DRIVERS,
+      AdminPermission.EDIT_DRIVERS,
+      AdminPermission.VIEW_STATS,
+      AdminPermission.SEND_FORMS,
+    ];
+  }
+  if (role === AdminRole.RECRUITER) {
+    return [
+      AdminPermission.VIEW_DRIVERS,
+      AdminPermission.EDIT_DRIVERS,
+      AdminPermission.SEND_FORMS,
+    ];
+  }
+  if (role === AdminRole.VIEWER) {
+    return [AdminPermission.VIEW_DRIVERS, AdminPermission.VIEW_STATS];
+  }
+  return [];
+}
+
+function uniquePermissions(raw: AdminPermission[]): AdminPermission[] {
+  const out: AdminPermission[] = [];
+  for (const permission of raw) {
+    const normalized = normalizePermission(permission);
+    if (normalized === AdminPermission.UNSPECIFIED) {
+      continue;
+    }
+    if (!out.includes(normalized)) {
+      out.push(normalized);
+    }
+  }
+  return out;
+}
+
+function serializePermissions(perms: AdminPermission[]): string {
+  return JSON.stringify(perms);
+}
+
+function parsePermissions(value: unknown): AdminPermission[] {
+  if (typeof value !== "string" || !value) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    const raw: AdminPermission[] = [];
+    for (const item of parsed) {
+      if (typeof item === "number") {
+        raw.push(item);
+      }
+    }
+    return uniquePermissions(raw);
+  } catch {
+    return [];
+  }
+}
+
+function buildAdminUserFromRow(row: unknown): AdminUser {
+  const role = normalizeRole(intValue(objectField(row, "role"), AdminRole.UNSPECIFIED));
+  const storedPermissions = parsePermissions(objectField(row, "permissions_json"));
+  const permissions =
+    storedPermissions.length > 0 ? storedPermissions : defaultPermissionsForRole(role);
+  return {
+    id: stringValue(objectField(row, "id"), ""),
+    email: stringValue(objectField(row, "email"), ""),
+    name: stringValue(objectField(row, "name"), ""),
+    role,
+    permissions,
+    createdAt: stringValue(objectField(row, "created_at"), ""),
+  };
 }
 
 function buildDriverFromRow(row: unknown): Driver {
@@ -364,6 +486,8 @@ export class AppDatabase {
         name TEXT NOT NULL,
         password_hash TEXT NOT NULL,
         salt TEXT NOT NULL,
+        role INTEGER NOT NULL,
+        permissions_json TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
 
@@ -374,7 +498,56 @@ export class AppDatabase {
         created_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES admin_users(id) ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS webhook_events (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        external_event_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        available_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        processed_at TEXT NOT NULL,
+        error_message TEXT NOT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_events_external
+      ON webhook_events(provider, external_event_id);
     `);
+
+    this.addColumnIfMissing("admin_users", "role", "INTEGER NOT NULL DEFAULT 1");
+    this.addColumnIfMissing("admin_users", "permissions_json", "TEXT NOT NULL DEFAULT '[]'");
+
+    this.db
+      .prepare(
+        `UPDATE admin_users SET role = ? WHERE role IS NULL OR role = ?`
+      )
+      .run(AdminRole.SUPER_ADMIN, AdminRole.UNSPECIFIED);
+    this.db
+      .prepare(
+        `UPDATE admin_users
+         SET permissions_json = ?
+         WHERE permissions_json IS NULL OR permissions_json = ''`
+      )
+      .run(serializePermissions(defaultPermissionsForRole(AdminRole.SUPER_ADMIN)));
+  }
+
+  private addColumnIfMissing(tableName: string, columnName: string, definition: string): void {
+    const rows = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
+    let hasColumn = false;
+    if (Array.isArray(rows)) {
+      for (const row of rows) {
+        if (stringValue(objectField(row, "name"), "") === columnName) {
+          hasColumn = true;
+          break;
+        }
+      }
+    }
+    if (!hasColumn) {
+      this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    }
   }
 
   private seed(): void {
@@ -408,10 +581,20 @@ export class AppDatabase {
       const hash = passwordHash("admin123", salt);
       this.db
         .prepare(
-          `INSERT INTO admin_users (id, email, name, password_hash, salt, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`
+          `INSERT INTO admin_users (
+            id, email, name, password_hash, salt, role, permissions_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .run("admin-1", "admin@driver.app", "Admin User", hash, salt, isoNow());
+        .run(
+          "admin-1",
+          "admin@driver.app",
+          "Admin User",
+          hash,
+          salt,
+          AdminRole.SUPER_ADMIN,
+          serializePermissions(defaultPermissionsForRole(AdminRole.SUPER_ADMIN)),
+          isoNow()
+        );
     }
   }
 
@@ -787,7 +970,7 @@ export class AppDatabase {
   login(request: LoginRequest): LoginResponse | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, email, name, password_hash, salt
+        `SELECT id, email, name, password_hash, salt, role, permissions_json, created_at
          FROM admin_users
          WHERE lower(email) = lower(?)`
       )
@@ -811,11 +994,7 @@ export class AppDatabase {
       .prepare(`INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`)
       .run(token, userId, expiresAt, isoNow());
 
-    const user: AdminUser = {
-      id: userId,
-      email: stringValue(objectField(row, "email"), ""),
-      name: stringValue(objectField(row, "name"), ""),
-    };
+    const user = buildAdminUserFromRow(row);
 
     return {
       token,
@@ -827,7 +1006,7 @@ export class AppDatabase {
   validateSession(request: ValidateSessionRequest): ValidateSessionResponse {
     const row = this.db
       .prepare(
-        `SELECT s.expires_at, u.id, u.email, u.name
+        `SELECT s.expires_at, u.id, u.email, u.name, u.role, u.permissions_json, u.created_at
          FROM sessions s
          JOIN admin_users u ON u.id = s.user_id
          WHERE s.token = ?`
@@ -847,16 +1026,250 @@ export class AppDatabase {
     return {
       valid: true,
       expiresAt,
-      user: {
-        id: stringValue(objectField(row, "id"), ""),
-        email: stringValue(objectField(row, "email"), ""),
-        name: stringValue(objectField(row, "name"), ""),
-      },
+      user: buildAdminUserFromRow(row),
     };
   }
 
   logout(request: LogoutRequest): LogoutResponse {
     const result = this.db.prepare(`DELETE FROM sessions WHERE token = ?`).run(request.token);
+    const changes = intValue(objectField(result, "changes"), 0);
+    return { success: changes > 0 };
+  }
+
+  findDriverByEmail(email: string): Driver | undefined {
+    const row = this.db
+      .prepare(`SELECT id FROM drivers WHERE lower(email) = lower(?) LIMIT 1`)
+      .get(email);
+    const id = stringValue(objectField(row, "id"), "");
+    if (!id) {
+      return undefined;
+    }
+    return this.loadDriver(id);
+  }
+
+  enqueueWebhookEvent(input: {
+    provider: string;
+    eventType: string;
+    externalEventId: string;
+    payload: unknown;
+  }): { queued: boolean; eventId: string; duplicate: boolean } {
+    const id = `wh-${randomBytes(10).toString("hex")}`;
+    const now = isoNow();
+    const payloadJson = JSON.stringify(input.payload);
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO webhook_events (
+            id, provider, event_type, external_event_id, payload_json,
+            status, attempts, available_at, created_at, processed_at, error_message
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          id,
+          input.provider,
+          input.eventType,
+          input.externalEventId,
+          payloadJson,
+          "PENDING",
+          0,
+          now,
+          now,
+          "",
+          ""
+        );
+      return { queued: true, eventId: id, duplicate: false };
+    } catch (error) {
+      const code = stringValue(objectField(error, "code"), "");
+      if (code === "SQLITE_CONSTRAINT_UNIQUE") {
+        const row = this.db
+          .prepare(
+            `SELECT id FROM webhook_events WHERE provider = ? AND external_event_id = ?`
+          )
+          .get(input.provider, input.externalEventId);
+        return {
+          queued: false,
+          eventId: stringValue(objectField(row, "id"), ""),
+          duplicate: true,
+        };
+      }
+      throw error;
+    }
+  }
+
+  claimNextWebhookEvent(provider: string): WebhookEvent | undefined {
+    const now = isoNow();
+    const row = this.db
+      .prepare(
+        `SELECT id, provider, event_type, external_event_id, payload_json, attempts
+         FROM webhook_events
+         WHERE provider = ? AND status = 'PENDING' AND available_at <= ?
+         ORDER BY created_at ASC
+         LIMIT 1`
+      )
+      .get(provider, now);
+    if (!row) {
+      return undefined;
+    }
+
+    const id = stringValue(objectField(row, "id"), "");
+    const nextAttempts = intValue(objectField(row, "attempts"), 0) + 1;
+    this.db
+      .prepare(
+        `UPDATE webhook_events
+         SET status = 'PROCESSING', attempts = ?
+         WHERE id = ?`
+      )
+      .run(nextAttempts, id);
+
+    const payloadRaw = stringValue(objectField(row, "payload_json"), "{}");
+    let payload: unknown = {};
+    try {
+      payload = JSON.parse(payloadRaw);
+    } catch {
+      payload = {};
+    }
+
+    return {
+      id,
+      provider: stringValue(objectField(row, "provider"), ""),
+      eventType: stringValue(objectField(row, "event_type"), ""),
+      externalEventId: stringValue(objectField(row, "external_event_id"), ""),
+      payload,
+      attempts: nextAttempts,
+    };
+  }
+
+  markWebhookEventProcessed(eventId: string): void {
+    this.db
+      .prepare(
+        `UPDATE webhook_events
+         SET status = 'PROCESSED', processed_at = ?, error_message = ''
+         WHERE id = ?`
+      )
+      .run(isoNow(), eventId);
+  }
+
+  markWebhookEventFailed(eventId: string, message: string, attempts: number): void {
+    const isTerminal = attempts >= 5;
+    const nextAvailable = new Date(
+      Date.now() + Math.min(60, Math.max(5, attempts * 5)) * 1000
+    ).toISOString();
+    this.db
+      .prepare(
+        `UPDATE webhook_events
+         SET status = ?, available_at = ?, error_message = ?
+         WHERE id = ?`
+      )
+      .run(isTerminal ? "FAILED" : "PENDING", nextAvailable, message, eventId);
+  }
+
+  listAdmins(): ListAdminsResponse {
+    const rows = this.db
+      .prepare(
+        `SELECT id, email, name, role, permissions_json, created_at
+         FROM admin_users
+         ORDER BY created_at DESC, email ASC`
+      )
+      .all();
+    if (!Array.isArray(rows)) {
+      return { admins: [] };
+    }
+    const admins: AdminUser[] = [];
+    for (const row of rows) {
+      admins.push(buildAdminUserFromRow(row));
+    }
+    return { admins };
+  }
+
+  getAdmin(request: GetAdminRequest): GetAdminResponse {
+    const row = this.db
+      .prepare(
+        `SELECT id, email, name, role, permissions_json, created_at
+         FROM admin_users
+         WHERE id = ?`
+      )
+      .get(request.id);
+    if (!row) {
+      return { admin: undefined };
+    }
+    return { admin: buildAdminUserFromRow(row) };
+  }
+
+  createAdmin(request: CreateAdminRequest): CreateAdminResponse {
+    const id = `admin-${randomBytes(8).toString("hex")}`;
+    const salt = randomBytes(16).toString("hex");
+    const hash = passwordHash(request.password, salt);
+    const role = normalizeRole(request.role);
+    const permissions = uniquePermissions(
+      request.permissions.length > 0
+        ? request.permissions
+        : defaultPermissionsForRole(role)
+    );
+    const createdAt = isoNow();
+
+    this.db
+      .prepare(
+        `INSERT INTO admin_users (
+          id, email, name, password_hash, salt, role, permissions_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        request.email,
+        request.name,
+        hash,
+        salt,
+        role,
+        serializePermissions(permissions),
+        createdAt
+      );
+
+    return {
+      admin: {
+        id,
+        email: request.email,
+        name: request.name,
+        role,
+        permissions,
+        createdAt,
+      },
+    };
+  }
+
+  updateAdminAccess(request: UpdateAdminAccessRequest): UpdateAdminAccessResponse {
+    const existing = this.getAdmin({ id: request.id }).admin;
+    if (!existing) {
+      return { admin: undefined };
+    }
+
+    const role = normalizeRole(request.role);
+    const permissions = uniquePermissions(
+      request.permissions.length > 0
+        ? request.permissions
+        : defaultPermissionsForRole(role)
+    );
+
+    this.db
+      .prepare(
+        `UPDATE admin_users
+         SET role = ?, permissions_json = ?
+         WHERE id = ?`
+      )
+      .run(role, serializePermissions(permissions), request.id);
+
+    return {
+      admin: {
+        ...existing,
+        role,
+        permissions,
+      },
+    };
+  }
+
+  deleteAdmin(request: DeleteAdminRequest): DeleteAdminResponse {
+    const result = this.db
+      .prepare(`DELETE FROM admin_users WHERE id = ?`)
+      .run(request.id);
     const changes = intValue(objectField(result, "changes"), 0);
     return { success: changes > 0 };
   }

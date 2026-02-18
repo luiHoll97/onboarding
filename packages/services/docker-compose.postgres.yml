@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: driver_onboarding_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: driver_onboarding
+      POSTGRES_USER: driver_onboarding
+      POSTGRES_PASSWORD: driver_onboarding
+    ports:
+      - "5432:5432"
+    volumes:
+      - driver_onboarding_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U driver_onboarding -d driver_onboarding"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  driver_onboarding_pg_data:

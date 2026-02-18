@@ -1,37 +1,37 @@
 import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
-import { Navigate, useLocation } from "react-router-dom";
 import type { ReactElement } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { clearAuthToken, getAuthToken } from "./auth.ts";
 
 const ME_QUERY = gql`
-  query Me {
+  query MeForPermission {
     me {
       id
-      email
-      name
-      role
       permissions
     }
   }
 `;
 
-type MeData = {
+type MePermissionData = {
   me: {
     id: string;
-    email: string;
-    name: string;
-    role: string;
     permissions: string[];
   } | null;
 };
 
-export function RequireAuth({ children }: { children: ReactElement }) {
+export function RequirePermission({
+  children,
+  permission,
+}: {
+  children: ReactElement;
+  permission: string;
+}) {
   const location = useLocation();
   const token = getAuthToken();
-  const { data, loading, error } = useQuery<MeData>(ME_QUERY, {
+  const { data, loading, error } = useQuery<MePermissionData>(ME_QUERY, {
     skip: !token,
-    fetchPolicy: "network-only",
+    fetchPolicy: "cache-first",
   });
 
   if (!token) {
@@ -39,12 +39,16 @@ export function RequireAuth({ children }: { children: ReactElement }) {
   }
 
   if (loading) {
-    return <div className="py-8 text-center text-slate-500">Checking admin session...</div>;
+    return <div className="py-8 text-center text-slate-500">Checking permissions...</div>;
   }
 
   if (error || !data?.me) {
     clearAuthToken();
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (!data.me.permissions.includes(permission)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

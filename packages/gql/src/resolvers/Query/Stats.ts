@@ -1,14 +1,14 @@
 import { GraphQLError } from "graphql";
 import { DriverStatus as GqlDriverStatus, type Resolvers } from "../../generated/graphql.js";
-import { DriverStatus } from "@driver-onboarding/proto";
-import { requireAdmin } from "../auth.js";
+import { AdminPermission, DriverStatus } from "@driver-onboarding/proto";
+import { requirePermission } from "../auth.js";
 
 export const StatsQuery: NonNullable<Resolvers["Query"]>["stats"] = async (
   _parent,
   { filters },
   ctx
 ) => {
-  requireAdmin(ctx);
+  requirePermission(ctx, AdminPermission.VIEW_STATS);
   let statusFilter: DriverStatus | undefined;
   if (filters?.status != null) {
     statusFilter =
