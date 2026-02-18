@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import type { Request, Response } from "express";
 import {
   AdminPermission,
   AdminRole,
@@ -15,6 +16,8 @@ import {
 } from "@driver-onboarding/proto";
 import type {
   CreatePrefilledFormLinkRequest,
+  IngestProviderWebhookRequest,
+  IngestProviderWebhookResponse,
   CreateAdminRequest,
   SendFormInvitationRequest,
   DeleteAdminRequest,
@@ -34,7 +37,7 @@ app.use(express.json());
 
 const db = createDatabaseAdapter();
 const formsService = createFormsService();
-let processingTypeformEvents = false;
+const providerProcessing = new Set<string>();
 
 function objectField(source: unknown, key: string): unknown {
   if (typeof source !== "object" || source === null) {
@@ -524,19 +527,28 @@ async function processTypeformEvent(payload: unknown, eventId: string): Promise<
   }
 }
 
-async function processTypeformEvents(): Promise<void> {
-  if (processingTypeformEvents) {
+type ProviderEventHandler = (payload: unknown, externalEventId: string) => Promise<void>;
+const providerHandlers: Record<string, ProviderEventHandler> = {
+  typeform: processTypeformEvent,
+};
+
+async function processProviderEvents(provider: string): Promise<void> {
+  if (providerProcessing.has(provider)) {
     return;
   }
-  processingTypeformEvents = true;
+  providerProcessing.add(provider);
   try {
     while (true) {
-      const event = await db.claimNextWebhookEvent("typeform");
+      const event = await db.claimNextWebhookEvent(provider);
       if (!event) {
         break;
       }
       try {
-        await processTypeformEvent(event.payload, event.externalEventId);
+        const handler = providerHandlers[provider];
+        if (!handler) {
+          throw new Error(`No webhook handler registered for provider "${provider}"`);
+        }
+        await handler(event.payload, event.externalEventId);
         await db.markWebhookEventProcessed(event.id);
       } catch (error) {
         const message =
@@ -545,8 +557,47 @@ async function processTypeformEvents(): Promise<void> {
       }
     }
   } finally {
-    processingTypeformEvents = false;
+    providerProcessing.delete(provider);
   }
+}
+
+async function ingestProviderWebhook(
+  request: IngestProviderWebhookRequest
+): Promise<IngestProviderWebhookResponse> {
+  const provider = request.provider.toLowerCase();
+  if (!provider) {
+    throw new Error("provider is required");
+  }
+
+  let payload: unknown = {};
+  if (request.payloadJson.trim()) {
+    try {
+      payload = JSON.parse(request.payloadJson);
+    } catch {
+      throw new Error("payloadJson must be valid JSON");
+    }
+  }
+
+  const eventName = normalizeEventName(request.eventName) || "event.received";
+  const externalEventId =
+    request.externalEventId ||
+    inferExternalEventId(provider, payload, request.headers);
+
+  const queued = await db.enqueueWebhookEvent({
+    provider,
+    eventType: eventName,
+    externalEventId,
+    payload,
+  });
+  void processProviderEvents(provider);
+
+  return {
+    accepted: true,
+    duplicate: queued.duplicate,
+    eventId: queued.eventId,
+    provider,
+    eventName,
+  };
 }
 
 function parseCreatePrefilledFormLinkRequest(
@@ -572,6 +623,56 @@ function parseSendFormInvitationRequest(value: unknown): SendFormInvitationReque
   };
 }
 
+function parseHeadersRecord(value: unknown): Record<string, string> {
+  if (typeof value !== "object" || value === null) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    out[key.toLowerCase()] = parseString(entry, "");
+  }
+  return out;
+}
+
+function parseIngestProviderWebhookRequest(
+  value: unknown
+): IngestProviderWebhookRequest {
+  return {
+    provider: parseString(objectField(value, "provider"), "").toLowerCase(),
+    eventName: parseString(objectField(value, "eventName"), ""),
+    externalEventId: parseString(objectField(value, "externalEventId"), ""),
+    payloadJson: parseString(objectField(value, "payloadJson"), ""),
+    headers: parseHeadersRecord(objectField(value, "headers")),
+  };
+}
+
+function normalizeEventName(eventName: string): string {
+  return eventName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function inferExternalEventId(
+  provider: string,
+  payload: unknown,
+  headers: Record<string, string>
+): string {
+  const headerEventId = headers["x-event-id"] || headers["x-request-id"];
+  if (headerEventId) {
+    return headerEventId;
+  }
+  if (provider === "typeform") {
+    return parseTypeformEventId(payload);
+  }
+  const direct = parseString(objectField(payload, "event_id"), "");
+  if (direct) {
+    return direct;
+  }
+  return `${provider}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const rpcMethods = {
   getDriver: "driver.v1.DriverService.GetDriver",
   listDrivers: "driver.v1.DriverService.ListDrivers",
@@ -590,6 +691,7 @@ const rpcMethods = {
   deleteAdmin: "svc.core.auth.AuthService.DeleteAdmin",
   createPrefilledFormLink: "service.core.forms.FormsService.CreatePrefilledFormLink",
   sendFormInvitation: "service.core.forms.FormsService.SendFormInvitation",
+  ingestProviderWebhook: "service.core.forms.FormsService.IngestProviderWebhook",
 };
 
 type RpcMethod = keyof typeof rpcMethods;
@@ -615,7 +717,8 @@ function resolveRpcMethod(method: string): RpcMethod | undefined {
         key === "updateAdminAccess" ||
         key === "deleteAdmin" ||
         key === "createPrefilledFormLink" ||
-        key === "sendFormInvitation"
+        key === "sendFormInvitation" ||
+        key === "ingestProviderWebhook"
       ) {
         return key;
       }
@@ -728,10 +831,13 @@ async function callRpc(method: RpcMethod, params: unknown): Promise<unknown> {
   if (method === "createPrefilledFormLink") {
     return formsService.createPrefilledLink(parseCreatePrefilledFormLinkRequest(params));
   }
-  return formsService.sendFormInvitation(parseSendFormInvitationRequest(params));
+  if (method === "sendFormInvitation") {
+    return formsService.sendFormInvitation(parseSendFormInvitationRequest(params));
+  }
+  return ingestProviderWebhook(parseIngestProviderWebhookRequest(params));
 }
 
-app.post("/rpc", async (req, res) => {
+app.post("/rpc", async (req: Request, res: Response) => {
   const body = req.body;
   const methodValue = parseString(objectField(body, "method"), "");
   if (!methodValue) {
@@ -761,21 +867,37 @@ app.post("/rpc", async (req, res) => {
   }
 });
 
-app.post("/webhooks/typeform", async (req, res) => {
-  const payload = req.body;
-  const externalEventId = parseTypeformEventId(payload);
-  const queued = await db.enqueueWebhookEvent({
-    provider: "typeform",
-    eventType: "submission.received",
-    externalEventId,
-    payload,
-  });
-  void processTypeformEvents();
-  res.status(202).json({
-    accepted: true,
-    duplicate: queued.duplicate,
-    eventId: queued.eventId,
-  });
+app.post("/webhooks/:provider/:eventName", async (req: Request, res: Response) => {
+  try {
+    const response = await ingestProviderWebhook({
+      provider: parseString(req.params.provider, "").toLowerCase(),
+      eventName: parseString(req.params.eventName, ""),
+      externalEventId: "",
+      payloadJson: JSON.stringify(req.body ?? {}),
+      headers: parseHeadersRecord(req.headers),
+    });
+    res.status(202).json(response);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid webhook request";
+    res.status(400).json({ error: { code: "INVALID_WEBHOOK", message } });
+  }
+});
+
+// Backward-compatible alias for existing Typeform integration endpoint.
+app.post("/webhooks/typeform", async (req: Request, res: Response) => {
+  try {
+    const response = await ingestProviderWebhook({
+      provider: "typeform",
+      eventName: "submission.received",
+      externalEventId: "",
+      payloadJson: JSON.stringify(req.body ?? {}),
+      headers: parseHeadersRecord(req.headers),
+    });
+    res.status(202).json(response);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid webhook request";
+    res.status(400).json({ error: { code: "INVALID_WEBHOOK", message } });
+  }
 });
 
 const port = Number(process.env.PORT) || 4001;

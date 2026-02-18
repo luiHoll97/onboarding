@@ -31,3 +31,19 @@ export interface SendFormInvitationResponse {
   messageId: string;
   provider: string;
 }
+
+export interface IngestProviderWebhookRequest {
+  provider: string;
+  eventName: string;
+  externalEventId: string;
+  payloadJson: string;
+  headers: Record<string, string>;
+}
+
+export interface IngestProviderWebhookResponse {
+  accepted: boolean;
+  duplicate: boolean;
+  eventId: string;
+  provider: string;
+  eventName: string;
+}
